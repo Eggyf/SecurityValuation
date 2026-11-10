@@ -14,6 +14,7 @@ Cada entrada indica la decisión, su justificación y su estado.
 | Modelo de cifra | `Fact` (`models/fact.py`) guarda el valor original con unidad, escala, periodo y `SourceRef`; la normalización a millones ocurre en `normalization/` vía `Fact.to_scale()` | Firmada (2026-11-10) |
 | Fuente obligatoria | iXBRL exige concepto XBRL; texto exige sección/página; la confianza (`HIGH/MEDIUM/LOW`) se deriva del tipo de fuente, no se pide aparte | Firmada (2026-11-10) |
 | Estructura de estados | Un modelo por estado y ejercicio (listas ordenadas y alineadas); las comprobaciones contables («3 años consecutivos», A = P + P) viven en `validation/`, no en el modelo | Firmada (2026-11-10) |
+| Supuestos y resultados | `Assumptions` con todos los supuestos opcionales (WACC, g, márgenes, etc.) y `DCFResult` con proyección, TV, puente EV→equity y sensibilidades; `is_reasonable` valida cordura (TV < 75% EV, precios positivos) | Firmada (2026-11-10) |
 
 ## Pendientes de decidir
 
@@ -27,3 +28,5 @@ Se resolverán al implementar cada módulo, no antes:
 - **Acciones diluidas:** método de la acción de tesorería con opciones/RSUs del 10-K.
 - **Escala en la extracción:** detección de `scale` por estado financiero y validación de
   consistencia entre estados.
+- **WACC:** ¿Guardar el valor calculado en `Assumptions` (como propiedad) o calcularlo
+  en el motor DCF y pasarlo como parámetro?
