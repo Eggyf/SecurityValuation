@@ -1,0 +1,36 @@
+# Entornos y artefactos de Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Caché de datos externos (AGENTS.md §13.1)
+.cache/
+
+# Secretos y configuración local (AGENTS.md §11)
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Salidas generadas por la app
+exports/
+*.xlsx
+!tests/fixtures/**/*.xlsx
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
