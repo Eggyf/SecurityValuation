@@ -70,6 +70,7 @@ class Assumptions(BaseModel):
     # --- WACC (AGENTS.md §7.3) ---
     risk_free_rate: float | None = Field(None, ge=0.0, le=0.1)  # Rf (bono 10 años)
     equity_beta: float | None = Field(None, ge=0.0)  # β desapalancado
+    equity_risk_premium: float | None = Field(None, ge=0.0, le=0.2)  # prima de riesgo del mercado
     market_equity_value: float | None = Field(None, ge=0.0)  # capitalización de mercado
     market_debt_value: float | None = Field(None, ge=0.0)  # valor de mercado de la deuda
     cost_of_debt: float | None = Field(None, ge=0.0, le=1.0)  # Kd antes de impuestos
