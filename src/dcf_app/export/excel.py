@@ -6,6 +6,7 @@ automáticamente al cambiar los inputs.
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import openpyxl
@@ -46,22 +47,20 @@ def _auto_width(ws) -> None:
         ws.column_dimensions[column_letter].width = adjusted_width
 
 
-def export_to_excel(
+def _build_workbook(
     result: DCFResult,
     financials: FinancialStatements,
     assumptions: Assumptions,
-    output_path: str | Path,
-) -> Path:
-    """Exporta el DCF completo a un archivo Excel con fórmulas vivas.
+) -> openpyxl.Workbook:
+    """Construye el libro Excel completo (6 hojas, fórmulas vivas).
 
     Args:
         result: resultado del DCF.
         financials: estados financieros.
         assumptions: supuestos de valoración.
-        output_path: ruta del archivo de salida.
 
     Returns:
-        Ruta del archivo generado.
+        Workbook sin guardar (lo persiste el llamador).
     """
     wb = openpyxl.Workbook()
 
@@ -87,9 +86,53 @@ def export_to_excel(
     if "Sheet" in wb.sheetnames:
         del wb["Sheet"]
 
+    return wb
+
+
+def export_to_excel(
+    result: DCFResult,
+    financials: FinancialStatements,
+    assumptions: Assumptions,
+    output_path: str | Path,
+) -> Path:
+    """Exporta el DCF completo a un archivo Excel con fórmulas vivas.
+
+    Args:
+        result: resultado del DCF.
+        financials: estados financieros.
+        assumptions: supuestos de valoración.
+        output_path: ruta del archivo de salida.
+
+    Returns:
+        Ruta del archivo generado.
+    """
+    wb = _build_workbook(result, financials, assumptions)
     output = Path(output_path)
     wb.save(output)
     return output
+
+
+def export_to_excel_bytes(
+    result: DCFResult,
+    financials: FinancialStatements,
+    assumptions: Assumptions,
+) -> bytes:
+    """Exporta el DCF a bytes de un archivo Excel (para descarga en la UI).
+
+    Mismo contenido que :func:`export_to_excel`, sin tocar disco.
+
+    Args:
+        result: resultado del DCF.
+        financials: estados financieros.
+        assumptions: supuestos de valoración.
+
+    Returns:
+        Contenido del .xlsx como bytes.
+    """
+    wb = _build_workbook(result, financials, assumptions)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
 
 
 def _write_inputs_sheet(wb, assumptions: Assumptions, financials: FinancialStatements) -> None:

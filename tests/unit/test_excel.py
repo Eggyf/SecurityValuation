@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from dcf_app.export.excel import export_to_excel
+from dcf_app.export.excel import export_to_excel, export_to_excel_bytes
 from dcf_app.models.assumptions import Assumptions, DiscountConvention
 from dcf_app.models.fact import Fact, Scale, SourceKind, SourceRef
 from dcf_app.models.financials import (
@@ -124,3 +124,51 @@ def test_export_has_sheets() -> None:
         assert "DCF" in wb.sheetnames
         assert "Sensitivities" in wb.sheetnames
         assert "Bridge" in wb.sheetnames
+
+
+def test_export_to_excel_bytes_is_valid_xlsx() -> None:
+    """Los bytes exportados son un xlsx valido con las 6 hojas.
+
+    Camino que usa el boton de descarga de la UI: mismo contenido que
+    ``export_to_excel`` sin tocar disco.
+    """
+    import io
+
+    import openpyxl
+
+    financials = _make_financials()
+    assumptions = _make_assumptions()
+    result = run_dcf(assumptions, financials)
+
+    data = export_to_excel_bytes(result, financials, assumptions)
+
+    assert isinstance(data, bytes)
+    assert data[:2] == b"PK"  # firma zip/xlsx
+    wb = openpyxl.load_workbook(io.BytesIO(data))
+    assert wb.sheetnames == [
+        "Inputs",
+        "Financials",
+        "Projection",
+        "DCF",
+        "Sensitivities",
+        "Bridge",
+    ]
+
+
+def test_export_bytes_matches_file_export() -> None:
+    """Los bytes y el archivo generado contienen las mismas hojas."""
+    import io
+
+    import openpyxl
+
+    financials = _make_financials()
+    assumptions = _make_assumptions()
+    result = run_dcf(assumptions, financials)
+
+    data = export_to_excel_bytes(result, financials, assumptions)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output = Path(tmpdir) / "test.xlsx"
+        export_to_excel(result, financials, assumptions, output)
+        from_file = openpyxl.load_workbook(output).sheetnames
+
+    assert openpyxl.load_workbook(io.BytesIO(data)).sheetnames == from_file

@@ -117,6 +117,10 @@ def _compute_historical_metrics(financials: FinancialStatements) -> dict[str, An
     preferred = _extract_fact_value(balance.preferred_stock)
     nci = _extract_fact_value(balance.non_controlling_interest)
 
+    # Patrimonio contable: proxy de los pesos del WACC si el usuario no
+    # aporta el valor de mercado del equity (AGENTS.md §7.3).
+    equity_value = _extract_fact_value(balance.total_equity)
+
     # Base revenue (año anterior para NWC)
     base_revenue: float | None = None
     if len(financials.income_statements) >= 2:
@@ -137,6 +141,7 @@ def _compute_historical_metrics(financials: FinancialStatements) -> dict[str, An
         "leases": leases,
         "preferred": preferred,
         "nci": nci,
+        "equity_value": equity_value,
         "base_revenue": base_revenue,
     }
 
@@ -153,11 +158,11 @@ def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
     if beta is None:
         raise ValueError("El beta del equity es requerido para el WACC.")
 
-    # ERP (prima de riesgo) - no está en el modelo, usamos un valor por defecto
-    # razonable si no se proporciona. En producción, esto vendría de Damodaran.
-    erp = getattr(assumptions, "equity_risk_premium", None)
+    # ERP (prima de riesgo): input del usuario (AGENTS.md §7.3), no se
+    # inventa; en v2 podrá precargarse de Damodaran (§13.2).
+    erp = assumptions.equity_risk_premium
     if erp is None:
-        erp = 0.05  # 5% por defecto (prima de riesgo histórica del mercado)
+        raise ValueError("La prima de riesgo del mercado (ERP) es requerida para el WACC.")
 
     # Ke por CAPM
     ke = capm_ke(rf, beta, erp)
@@ -186,8 +191,8 @@ def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
     debt_value = assumptions.market_debt_value
 
     if equity_value is None or debt_value is None:
-        # Usar valores contables como proxy
-        equity_value = metrics.get("equity_value", 0.0)
+        # Usar valores contables como proxy (AGENTS.md §7.3)
+        equity_value = metrics["equity_value"]
         debt_value = metrics["debt"]
         if equity_value == 0.0 and debt_value == 0.0:
             raise ValueError(

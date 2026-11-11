@@ -105,6 +105,7 @@ def _make_assumptions() -> Assumptions:
         ebit_margin_target=0.25,
         risk_free_rate=0.04,
         equity_beta=1.2,
+        equity_risk_premium=0.05,
         market_equity_value=1000.0,
         market_debt_value=200.0,
         cost_of_debt=0.06,
@@ -195,6 +196,35 @@ def test_run_dcf_missing_wacc_component_raises() -> None:
 
     with pytest.raises(ValueError, match="tasa libre de riesgo"):
         run_dcf(assumptions, financials)
+
+
+def test_run_dcf_missing_erp_raises() -> None:
+    """Sin ERP → ValueError.
+
+    El motor ya no sustituye la prima de riesgo por un valor tipico del 5 %
+    (AGENTS.md §2.1, §7.3): es un input del usuario.
+    """
+    financials = _make_financials()
+    assumptions = _make_assumptions()
+    assumptions.equity_risk_premium = None
+
+    with pytest.raises(ValueError, match="prima de riesgo"):
+        run_dcf(assumptions, financials)
+
+
+def test_compute_historical_metrics_includes_book_equity() -> None:
+    """Las metricas incluyen el patrimonio contable para los pesos del WACC.
+
+    Si el usuario no aporta valor de mercado, el WACC usa el proxy contable
+    ``equity_value`` del balance (AGENTS.md §7.3); antes la clave no existia
+    y valia siempre 0.0.
+    """
+    financials = _make_financials()
+    # El balance sintetico no define total_equity; se lo damos al ultimo ano.
+    financials.balance_sheets[-1].total_equity = _fact(900.0)
+    metrics = _compute_historical_metrics(financials)
+
+    assert math.isclose(metrics["equity_value"], 900.0)
 
 
 def test_run_dcf_missing_shares_raises() -> None:

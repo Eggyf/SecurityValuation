@@ -38,6 +38,19 @@ Cada entrada indica la decisión, su justificación y su estado.
 | Mapa de conceptos | Claves normalizadas (minúsculas, sin espacios/guiones/dos puntos); se corrigieron claves con espacios/mayúsculas que nunca podían matchear (`stockholders Equity`, `capitalExpenditures`, `netincreasein cash`) | Firmada (2026-11-11) |
 | Golden tests | `tests/fixtures/sample_ixbrl.html` (sintético: dimensional, trimestral, duplicado, conflicto) y recortes PDF de MSFT/NVDA (portada + páginas de estados; documentos públicos de la SEC) con valores ancla verificados a mano | Firmada (2026-11-11) |
 
+## Cierre de la v1: defaults, inputs de mercado y exportación
+
+| Tema | Decisión | Estado |
+|---|---|---|
+| Defaults sugeridos | `assumptions/defaults.py` calcula los pre-rellenos solo desde el 10-K: CAGR de ingresos acotado a [−5 %, 25 %] (§7.2), margen EBIT del último ejercicio, efectiva media acotada a [15 %, 30 %] (§7.1), acciones diluidas medias (en M) y deuda contable ST+LT (§7.3); si el dato no está en el documento, `None` y la UI lo pide (AGENTS.md §2.1) | Firmada (2026-11-11) |
+| ERP obligatoria | El motor ya no sustituye la prima de riesgo por un 5 % silencioso: sin ERP lanza `ValueError`; es un input del usuario (§7.3) y en v2 podrá precargarse de Damodaran (§13.2) | Firmada (2026-11-11) |
+| Inputs de mercado en la UI | Rf, β, ERP, Kd, capitalización, precio y acciones se muestran vacíos con ayuda contextual; al pulsar «Ejecutar DCF» la UI lista los faltantes en vez de ejecutar con huecos | Firmada (2026-11-11) |
+| Proxy contable del WACC | Si el usuario no aporta valores de mercado, los pesos usan el patrimonio contable (`metrics["equity_value"]`, antes inexistente y siempre 0.0) y la deuda contable; documentado como proxy, no como dato de mercado | Firmada (2026-11-11) |
+| Origen visible de cada pre-relleno | Cada default pre-rellenado lleva un caption con su origen (CAGR FYxxxx-yyyy, margen EBIT actual, efectiva media del histórico, deuda del balance, medias diluidas como aproximación editable) | Firmada (2026-11-11) |
+| Exportación desde la UI | Botón de descarga en la pestaña Resultados vía `export_to_excel_bytes` (mismo libro que `export_to_excel`, vía `io.BytesIO`); los supuestos usados se guardan en sesión (`dcf_assumptions`) para que el Excel coincida con el resultado mostrado | Firmada (2026-11-11) |
+| Bounds del formulario | g limitado a [2,0 %, 2,5 %] (§7.4), tasa impositiva a [15 %, 30 %] (§7.1), margen EBIT a [0 %, 90 %]; el slider de horizonte alimenta la proyección (antes su valor se descartaba y era decorativo) | Firmada (2026-11-11) |
+| EBIT negativo | Si el margen EBIT del último ejercicio es negativo, la UI avisa de que la v1 no cubre ese caso (§15) en vez de pre-rellenar el margen objetivo | Firmada (2026-11-11) |
+
 ## Pendientes de decidir
 
 Se resolverán al implementar cada módulo, no antes:

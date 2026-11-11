@@ -6,11 +6,14 @@ Ejecutar con: ``uv run streamlit run src/dcf_app/ui/app.py``
 from __future__ import annotations
 
 import tempfile
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
+from dcf_app.assumptions.defaults import suggest_defaults
+from dcf_app.export import export_to_excel_bytes
 from dcf_app.extraction import extract_financials, validate_extraction
 from dcf_app.models.assumptions import Assumptions, DiscountConvention, TerminalValueMethod
 from dcf_app.models.fact import Fact, Scale
@@ -37,6 +40,8 @@ if "assumptions" not in st.session_state:
     st.session_state.assumptions = None
 if "dcf_result" not in st.session_state:
     st.session_state.dcf_result = None
+if "dcf_assumptions" not in st.session_state:
+    st.session_state.dcf_assumptions = None
 if "validation_results" not in st.session_state:
     st.session_state.validation_results = []
 if "uploaded_file_name" not in st.session_state:
@@ -134,7 +139,7 @@ def _render_statement_table(title: str, rows: list[tuple[str, Fact | None]]) -> 
                 "Fuente": [_fact_source(fact) for _, fact in rows],
             }
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -149,37 +154,195 @@ def _render_validation_results(results: list[ValidationResult]) -> None:
             st.error(f"❌ {r.name}: {r.message}")
 
 
+def _pct(value: float | None) -> float | None:
+    """Convierte un porcentaje del widget a fracción (AGENTS.md §8)."""
+    return None if value is None else value / 100.0
+
+
+def _missing_market_inputs(assumptions: Assumptions) -> list[str]:
+    """Inputs obligatorios que no están en el 10-K (AGENTS.md §7.3).
+
+    La UI los muestra vacíos y exige rellenarlos antes de ejecutar el DCF:
+    no se sustituyen por valores típicos (AGENTS.md §2.1).
+    """
+    missing: list[str] = []
+    if assumptions.risk_free_rate is None:
+        missing.append("Rf (tasa libre de riesgo)")
+    if assumptions.equity_beta is None:
+        missing.append("Beta del equity")
+    if assumptions.equity_risk_premium is None:
+        missing.append("ERP (prima de riesgo)")
+    if assumptions.cost_of_debt is None:
+        missing.append("Kd (coste de la deuda)")
+    if assumptions.tax_rate is None:
+        missing.append("Tasa impositiva")
+    if assumptions.market_equity_value is None:
+        missing.append("Capitalización de mercado")
+    if assumptions.stock_price_current is None:
+        missing.append("Precio de la acción")
+    if assumptions.shares_outstanding is None:
+        missing.append("Acciones en circulación")
+    return missing
+
+
 def _render_assumptions_form() -> Assumptions | None:
-    """Renderiza el formulario de supuestos y devuelve los valores."""
+    """Renderiza el formulario de supuestos y devuelve los valores.
+
+    Los defaults se pre-rellenan solo con datos del 10-K (AGENTS.md §7.1,
+    §7.2), con un caption que indica su origen. Los inputs de mercado que
+    no están en el documento se muestran vacíos y son obligatorios para
+    ejecutar el DCF (§7.3).
+    """
     st.subheader("Supuestos de valoración")
+
+    financials = st.session_state.financials
+    suggested = suggest_defaults(financials) if financials is not None else None
+    income_years: tuple[int, int] | None = None
+    if financials is not None and financials.income_statements:
+        statements = financials.income_statements
+        income_years = (statements[0].fiscal_year, statements[-1].fiscal_year)
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("**Proyección**")
-        st.slider("Horizonte de proyección (años)", 3, 10, 5)
+        horizon = st.slider("Horizonte de proyección (años)", 3, 10, 5)
+
+        growth_pct = 5.0
+        if suggested is not None and suggested.revenue_cagr is not None:
+            growth_pct = suggested.revenue_cagr * 100.0
         initial_growth = (
-            st.number_input("Crecimiento inicial de ingresos (%)", -5.0, 25.0, 10.0, 0.5) / 100
+            st.number_input("Crecimiento inicial de ingresos (%)", -5.0, 25.0, growth_pct, 0.5)
+            / 100.0
         )
-        terminal_growth = st.number_input("Crecimiento terminal g (%)", 0.0, 5.0, 2.5, 0.1) / 100
-        ebit_margin_target = st.number_input("Margen EBIT objetivo (%)", 0.0, 50.0, 25.0, 0.5) / 100
+        if suggested is not None and suggested.revenue_cagr is not None and income_years:
+            st.caption(
+                f"Sugerido por el 10-K: CAGR FY{income_years[0]}-{income_years[1]} = "
+                f"{suggested.revenue_cagr:.1%} (acotado a [-5 %, 25 %], AGENTS.md §7.2)."
+            )
+        else:
+            st.caption("Sin histórico suficiente en el 10-K; ajústalo manualmente.")
+
+        terminal_growth = st.number_input("Crecimiento terminal g (%)", 2.0, 2.5, 2.5, 0.05) / 100.0
+        st.caption("Rango de metodología §7.4: 2,0-2,5 %, nunca superior a Rf.")
+
+        margin_pct = 25.0
+        if suggested is not None and suggested.ebit_margin_current is not None:
+            margin = suggested.ebit_margin_current * 100.0
+            if 0.0 <= margin <= 90.0:
+                margin_pct = margin
+        ebit_margin_target = (
+            st.number_input("Margen EBIT objetivo (%)", 0.0, 90.0, margin_pct, 0.5) / 100.0
+        )
+        if suggested is not None and suggested.ebit_margin_current is not None:
+            if suggested.ebit_margin_current < 0:
+                st.warning(
+                    "El EBIT del último ejercicio es negativo: la v1 no cubre este caso "
+                    "(AGENTS.md §15)."
+                )
+            else:
+                st.caption(
+                    f"Sugerido: margen EBIT actual del 10-K = {suggested.ebit_margin_current:.1%}."
+                )
 
     with col2:
         st.markdown("**WACC**")
-        risk_free = st.number_input("Tasa libre de riesgo Rf (%)", 0.0, 10.0, 4.0, 0.1) / 100
-        beta = st.number_input("Beta del equity", 0.0, 3.0, 1.2, 0.1)
-        erp = st.number_input("Prima de riesgo del mercado ERP (%)", 0.0, 15.0, 5.0, 0.5) / 100
-        cost_of_debt = st.number_input("Coste de la deuda Kd (%)", 0.0, 15.0, 6.0, 0.5) / 100
-        tax_rate = st.number_input("Tasa impositiva (%)", 0.0, 40.0, 21.0, 1.0) / 100
+        risk_free = _pct(
+            st.number_input(
+                "Tasa libre de riesgo Rf (%)",
+                0.0,
+                10.0,
+                None,
+                0.1,
+                help="Bono del Tesoro de EE. UU. a 10 años. No está en el 10-K (AGENTS.md §7.3).",
+            )
+        )
+        beta = st.number_input(
+            "Beta del equity",
+            0.0,
+            3.0,
+            None,
+            0.1,
+            help="Beta apalancada. No está en el 10-K (AGENTS.md §7.3).",
+        )
+        erp = _pct(
+            st.number_input(
+                "Prima de riesgo del mercado ERP (%)",
+                0.0,
+                15.0,
+                None,
+                0.5,
+                help="Referencia: datasets de Damodaran. No está en el 10-K (AGENTS.md §7.3).",
+            )
+        )
+        cost_of_debt = _pct(
+            st.number_input(
+                "Coste de la deuda Kd (%)",
+                0.0,
+                15.0,
+                None,
+                0.5,
+                help="Aproximación: intereses / deuda media (notas del 10-K).",
+            )
+        )
 
-    st.markdown("**Datos de mercado**")
+        tax_pct = None
+        if suggested is not None and suggested.effective_tax_rate is not None:
+            tax_pct = suggested.effective_tax_rate * 100.0
+        tax_rate = _pct(st.number_input("Tasa impositiva (%)", 15.0, 30.0, tax_pct, 1.0))
+        if suggested is not None and suggested.effective_tax_rate is not None:
+            st.caption(
+                f"Sugerida: efectiva media del 10-K = {suggested.effective_tax_rate:.1%} "
+                "(acotada a [15 %, 30 %], AGENTS.md §7.1)."
+            )
+        else:
+            st.caption("Sin datos de impuestos en el 10-K; introdúcela manualmente.")
+
+    st.markdown("**Datos de mercado** — no están en el 10-K (AGENTS.md §7.3)")
     col3, col4 = st.columns(2)
     with col3:
-        market_cap = st.number_input("Capitalización de mercado (M USD)", 0.0, 1e6, 1000.0, 10.0)
-        market_debt = st.number_input("Deuda a valor de mercado (M USD)", 0.0, 1e6, 200.0, 10.0)
+        market_cap = st.number_input(
+            "Capitalización de mercado (M USD)",
+            0.0,
+            1e8,
+            None,
+            10.0,
+            help="Aproximación si no la conoces: precio x acciones en circulación.",
+        )
+        debt_default = suggested.book_debt if suggested is not None else None
+        market_debt = st.number_input(
+            "Deuda (M USD)",
+            0.0,
+            1e8,
+            debt_default,
+            10.0,
+            help="Por defecto, la deuda contable del balance (ST+LT), editable.",
+        )
+        if debt_default is not None:
+            st.caption(f"Pre-rellenada con la deuda contable del balance: {debt_default:,.0f} M.")
     with col4:
-        stock_price = st.number_input("Precio de la acción (USD)", 0.0, 1e4, 100.0, 1.0)
-        shares = st.number_input("Acciones en circulación (M)", 0.0, 1e4, 100.0, 1.0)
+        stock_price = st.number_input(
+            "Precio de la acción (USD)",
+            0.0,
+            1e4,
+            None,
+            1.0,
+            help="Precio actual; necesario para el upside/downside y la dilución (AGENTS.md §7.6).",
+        )
+        shares_default = suggested.diluted_weighted_shares if suggested is not None else None
+        shares = st.number_input(
+            "Acciones en circulación (M)",
+            0.0,
+            1e6,
+            shares_default,
+            1.0,
+            help="Número exacto si lo tienes; el 10-K solo aporta las medias diluidas.",
+        )
+        if shares_default is not None:
+            st.caption(
+                f"Pre-rellenadas con las medias diluidas del 10-K: {shares_default:,.0f} M "
+                "(aproximación; ajústalas si tienes el dato exacto)."
+            )
 
     st.markdown("**Valor terminal**")
     terminal_method = st.selectbox(
@@ -189,23 +352,25 @@ def _render_assumptions_form() -> Assumptions | None:
     exit_multiple = None
     if terminal_method == "Múltiplo de salida":
         exit_multiple = st.number_input("Múltiplo EV/EBITDA", 0.0, 50.0, 10.0, 0.5)
+        st.caption("Supuesto tuyo; los peers llegarán en v2 (AGENTS.md §14.4).")
 
     st.markdown("**Convención de descuento**")
     convention = st.selectbox("Convención", ["Fin de año", "Mitad de año"])
 
     # Datos de la empresa (de los estados financieros si están disponibles)
     company_name = "Empresa"
-    fiscal_year_end = "2024-12-31"
-    if st.session_state.financials is not None:
-        company_name = st.session_state.financials.company_name
-        if st.session_state.financials.income_statements:
-            fiscal_year_end = str(st.session_state.financials.income_statements[-1].period_end)
+    fiscal_year_end = date(2024, 12, 31)
+    if financials is not None:
+        company_name = financials.company_name
+        if financials.income_statements:
+            fiscal_year_end = financials.income_statements[-1].period_end
 
     try:
         assumptions = Assumptions(
             company_name=company_name,
             fiscal_year_end=fiscal_year_end,
             valuation_date=fiscal_year_end,
+            forecast_horizon=horizon,
             initial_revenue_growth=initial_growth,
             terminal_revenue_growth=terminal_growth,
             ebit_margin_target=ebit_margin_target,
@@ -273,7 +438,7 @@ def _render_results(result: Any) -> None:
             "ΔNWC": result.delta_nwc_forecast,
         }
     )
-    st.dataframe(forecast_df, use_container_width=True)
+    st.dataframe(forecast_df, width="stretch")
 
     # Puente
     st.subheader("Puente EV → Equity")
@@ -281,7 +446,7 @@ def _render_results(result: Any) -> None:
         list(result.bridge_breakdown.items()),
         columns=["Partida", "Valor (M USD)"],
     )
-    st.dataframe(bridge_df, use_container_width=True)
+    st.dataframe(bridge_df, width="stretch")
 
     # Sensibilidades
     st.subheader("Sensibilidad: WACC x g → Precio por acción")
@@ -299,7 +464,7 @@ def _render_results(result: Any) -> None:
         sens_df = pd.DataFrame(
             matrix, index=[f"{w:.1%}" for w in waccs], columns=[f"{g:.1%}" for g in gs]
         )
-        st.dataframe(sens_df, use_container_width=True)
+        st.dataframe(sens_df, width="stretch")
 
     st.subheader("Sensibilidad: Margen EBIT x Crecimiento → Precio por acción")
     if result.sensitivity_margin_growth:
@@ -315,7 +480,7 @@ def _render_results(result: Any) -> None:
         sens_df = pd.DataFrame(
             matrix, index=[f"{m:.1%}" for m in margins], columns=[f"{gr:.1%}" for gr in growths]
         )
-        st.dataframe(sens_df, use_container_width=True)
+        st.dataframe(sens_df, width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -444,21 +609,55 @@ def main() -> None:
                 if st.session_state.financials is None:
                     st.error("Primero sube un archivo 10-K en la pestaña 1.")
                 else:
-                    with st.spinner("Calculando DCF..."):
-                        try:
-                            result = run_dcf(assumptions, st.session_state.financials)
-                            st.session_state.dcf_result = result
-                            st.success("DCF calculado correctamente.")
-                        except Exception as e:
-                            st.error(f"Error en el DCF: {e}")
+                    missing = _missing_market_inputs(assumptions)
+                    if missing:
+                        st.warning(
+                            "Faltan inputs que no están en el 10-K (AGENTS.md §7.3): "
+                            + ", ".join(missing)
+                            + ". Rellénalos arriba antes de ejecutar."
+                        )
+                    else:
+                        with st.spinner("Calculando DCF..."):
+                            try:
+                                result = run_dcf(assumptions, st.session_state.financials)
+                                st.session_state.dcf_result = result
+                                st.session_state.dcf_assumptions = assumptions
+                                st.success("DCF calculado correctamente.")
+                            except Exception as e:
+                                st.error(f"Error en el DCF: {e}")
 
     # --- Tab 4: Resultados ---
     with tabs[3]:
         st.header("Resultados")
-        if st.session_state.dcf_result is None:
+        result = st.session_state.dcf_result
+        if result is None:
             st.info("Ejecuta el DCF en la pestaña de Supuestos.")
         else:
-            _render_results(st.session_state.dcf_result)
+            _render_results(result)
+
+            # Exportación a Excel (AGENTS.md §1: informe UI + Excel).
+            st.subheader("Exportar a Excel")
+            financials = st.session_state.financials
+            assumptions_used = st.session_state.dcf_assumptions
+            if financials is None or assumptions_used is None:
+                st.warning("Faltan datos de sesión para exportar; vuelve a ejecutar el DCF.")
+            else:
+                try:
+                    data = export_to_excel_bytes(result, financials, assumptions_used)
+                    company = "".join(c if c.isalnum() else "_" for c in financials.company_name)
+                    fiscal_year = (
+                        financials.income_statements[-1].fiscal_year
+                        if financials.income_statements
+                        else ""
+                    )
+                    st.download_button(
+                        "⬇️ Descargar informe Excel (fórmulas vivas)",
+                        data=data,
+                        file_name=f"DCF_{company}_{fiscal_year}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                except Exception as e:
+                    st.error(f"Error generando el Excel: {e}")
 
     # Disclaimer final
     st.markdown("---")
