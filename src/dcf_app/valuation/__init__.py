@@ -18,6 +18,12 @@ from dcf_app.valuation.forecast import (
     project_nopat,
     project_revenue,
 )
+from dcf_app.valuation.sensitivity import (
+    _dcf_price,
+    sensitivity_2d,
+    sensitivity_margin_growth,
+    sensitivity_wacc_growth,
+)
 from dcf_app.valuation.wacc import (
     capm_ke,
     cost_of_debt,
@@ -30,6 +36,7 @@ from dcf_app.valuation.wacc import (
 
 __all__ = [
     "ForecastResult",
+    "_dcf_price",
     "bridge_summary",
     "bridge_to_equity",
     "build_forecast",
@@ -46,6 +53,9 @@ __all__ = [
     "project_fcff",
     "project_nopat",
     "project_revenue",
+    "sensitivity_2d",
+    "sensitivity_margin_growth",
+    "sensitivity_wacc_growth",
     "terminal_value_gordon",
     "terminal_value_multiple",
     "treasury_stock_diluted_shares",
