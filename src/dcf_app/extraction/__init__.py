@@ -1,1 +1,43 @@
-"""Lectura del 10-K: iXBRL, localización de secciones y mapeo de conceptos."""
+"""Extracción del 10-K: iXBRL, secciones y mapeo de conceptos."""
+
+from dcf_app.extraction.ixbrl import extract_ixbrl
+from dcf_app.extraction.mapping import (
+    BALANCE_SHEET_MAP,
+    CASH_FLOW_MAP,
+    INCOME_STATEMENT_MAP,
+    NOTES_MAP,
+    is_company_extension,
+    map_concept,
+    normalize_concept,
+)
+from dcf_app.extraction.pdf import (
+    extract_pdf_tables,
+    extract_pdf_text,
+    parse_financial_table,
+)
+from dcf_app.extraction.sections import (
+    find_balance_sheet_section,
+    find_cash_flow_section,
+    find_income_statement_section,
+    find_notes_section,
+    find_section,
+)
+
+__all__ = [
+    "BALANCE_SHEET_MAP",
+    "CASH_FLOW_MAP",
+    "INCOME_STATEMENT_MAP",
+    "NOTES_MAP",
+    "extract_ixbrl",
+    "extract_pdf_tables",
+    "extract_pdf_text",
+    "find_balance_sheet_section",
+    "find_cash_flow_section",
+    "find_income_statement_section",
+    "find_notes_section",
+    "find_section",
+    "is_company_extension",
+    "map_concept",
+    "normalize_concept",
+    "parse_financial_table",
+]
