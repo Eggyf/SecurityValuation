@@ -6,6 +6,7 @@ from dcf_app.valuation.bridge import (
     price_per_share,
     treasury_stock_diluted_shares,
 )
+from dcf_app.valuation.dcf import run_dcf
 from dcf_app.valuation.forecast import (
     ForecastResult,
     build_forecast,
@@ -53,6 +54,7 @@ __all__ = [
     "project_fcff",
     "project_nopat",
     "project_revenue",
+    "run_dcf",
     "sensitivity_2d",
     "sensitivity_margin_growth",
     "sensitivity_wacc_growth",
