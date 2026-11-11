@@ -103,7 +103,9 @@ def _facts_to_financials(data: dict[str, Any], file_name: str) -> FinancialState
     )
 
 
-def _pdf_to_financials(text: str, tables: list[dict[str, Any]], file_name: str) -> FinancialStatements:  # noqa: E501
+def _pdf_to_financials(
+    text: str, tables: list[dict[str, Any]], file_name: str
+) -> FinancialStatements:
     """Convierte datos extraídos de PDF a FinancialStatements (simplificado)."""
     from dcf_app.models.financials import (
         FinancialStatements,
@@ -148,7 +150,9 @@ def _render_assumptions_form() -> Assumptions | None:
     with col1:
         st.markdown("**Proyección**")
         st.slider("Horizonte de proyección (años)", 3, 10, 5)
-        initial_growth = st.number_input("Crecimiento inicial de ingresos (%)", -5.0, 25.0, 10.0, 0.5) / 100  # noqa: E501
+        initial_growth = (
+            st.number_input("Crecimiento inicial de ingresos (%)", -5.0, 25.0, 10.0, 0.5) / 100
+        )
         terminal_growth = st.number_input("Crecimiento terminal g (%)", 0.0, 5.0, 2.5, 0.1) / 100
         ebit_margin_target = st.number_input("Margen EBIT objetivo (%)", 0.0, 50.0, 25.0, 0.5) / 100
 
@@ -207,12 +211,14 @@ def _render_assumptions_form() -> Assumptions | None:
             stock_price_current=stock_price,
             shares_outstanding=shares,
             terminal_value_method=(
-                TerminalValueMethod.GORDON_GROWTH if terminal_method == "Gordon Growth"
+                TerminalValueMethod.GORDON_GROWTH
+                if terminal_method == "Gordon Growth"
                 else TerminalValueMethod.MULTIPLE
             ),
             exit_multiple_ebitda=exit_multiple,
             discount_convention=(
-                DiscountConvention.END_OF_YEAR if convention == "Fin de año"
+                DiscountConvention.END_OF_YEAR
+                if convention == "Fin de año"
                 else DiscountConvention.MID_YEAR
             ),
         )
@@ -248,15 +254,17 @@ def _render_results(result: Any) -> None:
     st.subheader("Proyección de flujos (FCFF)")
     import pandas as pd
 
-    forecast_df = pd.DataFrame({
-        "Año": result.forecast_years,
-        "Ingresos": result.revenue_forecast,
-        "EBIT": result.ebit_forecast,
-        "NOPAT": result.nopat_forecast,
-        "FCFF": result.fcff_forecast,
-        "CapEx": result.capex_forecast,
-        "ΔNWC": result.delta_nwc_forecast,
-    })
+    forecast_df = pd.DataFrame(
+        {
+            "Año": result.forecast_years,
+            "Ingresos": result.revenue_forecast,
+            "EBIT": result.ebit_forecast,
+            "NOPAT": result.nopat_forecast,
+            "FCFF": result.fcff_forecast,
+            "CapEx": result.capex_forecast,
+            "ΔNWC": result.delta_nwc_forecast,
+        }
+    )
     st.dataframe(forecast_df, use_container_width=True)
 
     # Puente
@@ -280,7 +288,9 @@ def _render_results(result: Any) -> None:
                 val = result.sensitivity_wacc_growth.get((w, g), float("nan"))
                 row.append(f"{val:.2f}" if val == val else "N/A")
             matrix.append(row)
-        sens_df = pd.DataFrame(matrix, index=[f"{w:.1%}" for w in waccs], columns=[f"{g:.1%}" for g in gs])  # noqa: E501
+        sens_df = pd.DataFrame(
+            matrix, index=[f"{w:.1%}" for w in waccs], columns=[f"{g:.1%}" for g in gs]
+        )
         st.dataframe(sens_df, use_container_width=True)
 
     st.subheader("Sensibilidad: Margen EBIT x Crecimiento → Precio por acción")
@@ -294,7 +304,9 @@ def _render_results(result: Any) -> None:
                 val = result.sensitivity_margin_growth.get((m, gr), float("nan"))
                 row.append(f"{val:.2f}" if val == val else "N/A")
             matrix.append(row)
-        sens_df = pd.DataFrame(matrix, index=[f"{m:.1%}" for m in margins], columns=[f"{gr:.1%}" for gr in growths])  # noqa: E501
+        sens_df = pd.DataFrame(
+            matrix, index=[f"{m:.1%}" for m in margins], columns=[f"{gr:.1%}" for gr in growths]
+        )
         st.dataframe(sens_df, use_container_width=True)
 
 
@@ -316,18 +328,20 @@ def main() -> None:
             type=["html", "htm", "xhtml", "pdf"],
         )
         if uploaded is not None and st.button("Extraer datos"):
-                with st.spinner("Extrayendo datos..."):
-                    financials = _extract_from_file(uploaded)
-                    if financials is not None:
-                        st.session_state.financials = financials
-                        st.session_state.uploaded_file_name = uploaded.name
-                        st.session_state.validation_results = validate_all(financials)
-                        st.success("Datos extraídos correctamente.")
-                        st.info(f"Empresa: {financials.company_name}")
-                        if financials.income_statements:
-                            st.info(f"Ejercicios: {financials.fiscal_years}")
-                        else:
-                            st.warning("No se encontraron estados financieros. Introduce los datos manualmente en la pestaña de Supuestos.")  # noqa: E501
+            with st.spinner("Extrayendo datos..."):
+                financials = _extract_from_file(uploaded)
+                if financials is not None:
+                    st.session_state.financials = financials
+                    st.session_state.uploaded_file_name = uploaded.name
+                    st.session_state.validation_results = validate_all(financials)
+                    st.success("Datos extraídos correctamente.")
+                    st.info(f"Empresa: {financials.company_name}")
+                    if financials.income_statements:
+                        st.info(f"Ejercicios: {financials.fiscal_years}")
+                    else:
+                        st.warning(
+                            "No se encontraron estados financieros. Introduce los datos manualmente en la pestaña de Supuestos."  # noqa: E501
+                        )
 
     # --- Tab 2: Revisar datos ---
     with tabs[1]:
@@ -345,7 +359,22 @@ def main() -> None:
                 st.subheader("Cuenta de resultados (último ejercicio)")
                 last_income = financials.income_statements[-1]
                 data = {
-                    "Partida": ["Revenue", "COGS", "Gross Profit", "SG&A", "R&D", "D&A", "EBIT", "Interest", "Pretax", "Tax", "Net Income", "Diluted EPS", "Diluted Shares", "SBC"],  # noqa: E501
+                    "Partida": [
+                        "Revenue",
+                        "COGS",
+                        "Gross Profit",
+                        "SG&A",
+                        "R&D",
+                        "D&A",
+                        "EBIT",
+                        "Interest",
+                        "Pretax",
+                        "Tax",
+                        "Net Income",
+                        "Diluted EPS",
+                        "Diluted Shares",
+                        "SBC",
+                    ],
                     "Valor": [
                         _fact_display(last_income.revenue),
                         _fact_display(last_income.cogs),
@@ -364,13 +393,30 @@ def main() -> None:
                     ],
                 }
                 import pandas as pd
+
                 st.dataframe(pd.DataFrame(data), use_container_width=True)
 
             if financials.balance_sheets:
                 st.subheader("Balance (último ejercicio)")
                 last_balance = financials.balance_sheets[-1]
                 data = {
-                    "Partida": ["Cash", "ST Investments", "AR", "Inventory", "AP", "Accrued Liab", "ST Debt", "LT Debt", "Leases (op. CP)", "Leases (op. LP)", "Preferred", "NCI", "Total Equity", "Total Assets", "Total Liabilities"],  # noqa: E501
+                    "Partida": [
+                        "Cash",
+                        "ST Investments",
+                        "AR",
+                        "Inventory",
+                        "AP",
+                        "Accrued Liab",
+                        "ST Debt",
+                        "LT Debt",
+                        "Leases (op. CP)",
+                        "Leases (op. LP)",
+                        "Preferred",
+                        "NCI",
+                        "Total Equity",
+                        "Total Assets",
+                        "Total Liabilities",
+                    ],
                     "Valor": [
                         _fact_display(last_balance.cash_and_equivalents),
                         _fact_display(last_balance.short_term_investments),
