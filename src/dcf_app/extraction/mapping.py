@@ -158,9 +158,9 @@ NOTES_MAP: Final[dict[str, str]] = {
 def normalize_concept(concept: str) -> str:
     """Normaliza un concepto XBRL para búsqueda en el mapeo.
 
-    Elimina espacios, guiones y convierte a minúsculas.
+    Elimina espacios, guiones, dos puntos y convierte a minúsculas.
     """
-    return concept.lower().replace(" ", "").replace("-", "").replace("_", "")
+    return concept.lower().replace(" ", "").replace("-", "").replace("_", "").replace(":", "")
 
 
 def map_concept(concept: str, statement_type: str) -> str | None:

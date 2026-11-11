@@ -103,9 +103,9 @@ class FinancialStatements(BaseModel):
     company_name: str = Field(min_length=1)
     cik: str | None = None
     reporting_currency: str = "USD"
-    income_statements: list[IncomeStatement] = Field(min_length=1)
-    balance_sheets: list[BalanceSheet] = Field(min_length=1)
-    cash_flow_statements: list[CashFlowStatement] = Field(min_length=1)
+    income_statements: list[IncomeStatement] = Field(default_factory=list)
+    balance_sheets: list[BalanceSheet] = Field(default_factory=list)
+    cash_flow_statements: list[CashFlowStatement] = Field(default_factory=list)
     notes: SupplementaryNotes = Field(default_factory=SupplementaryNotes)
 
     @property

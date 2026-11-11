@@ -10,6 +10,12 @@ from dcf_app.extraction.mapping import (
     map_concept,
     normalize_concept,
 )
+from dcf_app.extraction.orchestrator import (
+    extract_financials,
+    extract_from_html,
+    extract_from_pdf,
+    validate_extraction,
+)
 from dcf_app.extraction.pdf import (
     extract_pdf_tables,
     extract_pdf_text,
@@ -28,6 +34,9 @@ __all__ = [
     "CASH_FLOW_MAP",
     "INCOME_STATEMENT_MAP",
     "NOTES_MAP",
+    "extract_financials",
+    "extract_from_html",
+    "extract_from_pdf",
     "extract_ixbrl",
     "extract_pdf_tables",
     "extract_pdf_text",
@@ -40,4 +49,5 @@ __all__ = [
     "map_concept",
     "normalize_concept",
     "parse_financial_table",
+    "validate_extraction",
 ]
