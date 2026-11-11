@@ -1,128 +1,74 @@
 """Orquestador de extracción del 10-K (AGENTS.md §6, §13.4).
 
-Intenta primero iXBRL (HTML), luego PDF, luego texto plano.
-Devuelve FinancialStatements listo para el pipeline.
+Punto de entrada del pipeline de extracción:
+
+- HTML/iXBRL → :func:`extract_ixbrl` + :func:`build_financial_statements`
+  (vía preferida, tags ``ix:nonFraction``).
+- PDF → :func:`extract_statements_from_pdf` (fallback por etiquetas,
+  marcado ``text_fallback``).
+
+Ambos caminos devuelven :class:`~dcf_app.models.financials.FinancialStatements`
+con trazabilidad por cifra (AGENTS.md §2.3). Si falta alguno de los tres
+estados, se devuelve un objeto con listas vacías y
+:func:`validate_extraction` lo comunica (degradación segura, §2.8).
 """
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from dcf_app.extraction.ixbrl import extract_ixbrl
-from dcf_app.extraction.pdf import extract_pdf_tables
-from dcf_app.models.fact import Scale, SourceKind, SourceRef
-from dcf_app.models.financials import (
-    BalanceSheet,
-    CashFlowStatement,
-    FinancialStatements,
-    IncomeStatement,
-)
+from dcf_app.extraction.pdf_statements import extract_statements_from_pdf
+from dcf_app.extraction.statements import build_financial_statements
+from dcf_app.models.financials import FinancialStatements
 
+logger = logging.getLogger(__name__)
 
-def _make_source(kind: SourceKind, location: str, concept: str | None = None) -> SourceRef:
-    """Crea un SourceRef con los parámetros dados."""
-    return SourceRef(kind=kind, concept=concept, location=location)
-
-
-def _parse_number(text: str) -> float | None:
-    """Parsea un número de un texto (maneja comas, paréntesis negativos)."""
-    text = text.strip()
-    if not text or text in ("-", "\u2014", "\u2013", ""):
-        return None
-
-    negative = False
-    if text.startswith("(") and text.endswith(")"):
-        negative = True
-        text = text[1:-1]
-
-    text = text.replace(",", "").replace(" ", "").replace("$", "")
-    try:
-        value = float(text)
-    except ValueError:
-        return None
-
-    return -value if negative else value
-
-
-def _detect_scale_from_text(text: str) -> Scale:
-    """Detecta la escala a partir del texto."""
-    text_lower = text.lower()
-    if "billion" in text_lower:
-        return Scale.BILLIONS
-    if "million" in text_lower:
-        return Scale.MILLIONS
-    if "thousand" in text_lower:
-        return Scale.THOUSANDS
-    return Scale.UNITS
+_HTML_SUFFIXES = {".html", ".htm", ".xhtml"}
 
 
 def extract_from_html(html_path: str | Path) -> FinancialStatements:
-    """Extrae FinancialStatements desde un archivo HTML/iXBRL.
+    """Extrae FinancialStatements desde un archivo HTML/iXBRL (vía preferida).
 
     Args:
         html_path: ruta al archivo HTML/iXBRL.
 
     Returns:
-        FinancialStatements con los datos extraídos.
-
-    Raises:
-        ValueError: si no se pueden extraer datos.
+        FinancialStatements construido a partir de los facts iXBRL no
+        dimensionales. Si no se pueden construir los tres estados, devuelve
+        listas vacías (lo reporta :func:`validate_extraction`).
     """
-    data = extract_ixbrl(html_path)
-    facts = data.get("facts", [])
+    path = Path(html_path)
+    data = extract_ixbrl(path)
+    facts = data["facts"]
+
+    company_name = data.get("company_name") or path.stem
+    currency = data.get("currency") or "USD"
 
     if not facts:
-        raise ValueError("No se extrajeron facts del archivo HTML.")
+        logger.warning("iXBRL: no se extrajo ningun fact de %s", path.name)
+        return FinancialStatements(company_name=company_name, reporting_currency=currency)
 
-    # Agrupar facts por tipo de estado y periodo
-    # (simplificado: por ahora solo creamos un FinancialStatements básico)
-    company_name = data.get("company_name") or Path(html_path).stem
-
-    # Crear un FinancialStatements vacío (la normalización se hace en normalization/)
-    return FinancialStatements(
-        company_name=company_name,
-        income_statements=[],
-        balance_sheets=[],
-        cash_flow_statements=[],
-    )
+    return build_financial_statements(facts, company_name, currency)
 
 
 def extract_from_pdf(pdf_path: str | Path) -> FinancialStatements:
-    """Extrae FinancialStatements desde un archivo PDF.
-
-    Intenta extraer tablas y parsearlas. Si no encuentra tablas,
-    intenta parsear el texto.
+    """Extrae FinancialStatements desde un archivo PDF (fallback).
 
     Args:
         pdf_path: ruta al archivo PDF.
 
     Returns:
-        FinancialStatements con los datos extraídos.
+        FinancialStatements con las partidas localizadas (el resto queda en
+        ``None``), marcadas como ``text_fallback``. Si falta algún estado,
+        devuelve listas vacías.
     """
-    path = Path(pdf_path)
-    company_name = path.stem
-
-    # Intentar extraer tablas (para uso futuro)
-    extract_pdf_tables(path)
-
-    income_statements: list[IncomeStatement] = []
-    balance_sheets: list[BalanceSheet] = []
-    cash_flow_statements: list[CashFlowStatement] = []
-
-    # Por ahora, crear un FinancialStatements básico
-    # La extracción detallada de tablas se mejora iterativamente
-    return FinancialStatements(
-        company_name=company_name,
-        income_statements=income_statements,
-        balance_sheets=balance_sheets,
-        cash_flow_statements=cash_flow_statements,
-    )
+    return extract_statements_from_pdf(pdf_path)
 
 
 def extract_financials(file_path: str | Path) -> FinancialStatements:
     """Extrae FinancialStatements de un archivo 10-K (HTML o PDF).
-
-    Intenta primero iXBRL (HTML), luego PDF.
 
     Args:
         file_path: ruta al archivo 10-K.
@@ -131,17 +77,16 @@ def extract_financials(file_path: str | Path) -> FinancialStatements:
         FinancialStatements con los datos extraídos.
 
     Raises:
-        ValueError: si no se puede extraer de ningún formato.
+        ValueError: si el formato no está soportado.
     """
     path = Path(file_path)
     suffix = path.suffix.lower()
 
-    if suffix in (".html", ".htm", ".xhtml"):
+    if suffix in _HTML_SUFFIXES:
         return extract_from_html(path)
-    elif suffix == ".pdf":
+    if suffix == ".pdf":
         return extract_from_pdf(path)
-    else:
-        raise ValueError(f"Formato no soportado: {suffix}")
+    raise ValueError(f"Formato no soportado: {suffix}")
 
 
 def validate_extraction(financials: FinancialStatements) -> list[str]:

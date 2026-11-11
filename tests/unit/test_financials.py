@@ -69,9 +69,17 @@ def test_unsorted_years_rejected() -> None:
         _statements(years=(2024, 2023, 2022))
 
 
-def test_misaligned_states_rejected() -> None:
-    with pytest.raises(PydanticValidationError, match="mismos ejercicios"):
-        _statements(years=(2022, 2023, 2024), balance_years=(2023, 2024))
+def test_balance_two_years_vs_income_three_is_valid() -> None:
+    # Reg S-X: el balance presenta 2 ejercicios y el P&L/flujos 3.
+    statements = _statements(years=(2022, 2023, 2024), balance_years=(2023, 2024))
+    assert statements.fiscal_years == [2022, 2023, 2024]
+    assert [b.fiscal_year for b in statements.balance_sheets] == [2023, 2024]
+
+
+def test_misaligned_base_year_rejected() -> None:
+    # El año base (más reciente) debe coincidir en los tres estados.
+    with pytest.raises(PydanticValidationError, match="año base"):
+        _statements(years=(2022, 2023, 2024), balance_years=(2024, 2025))
 
 
 def test_empty_state_rejected() -> None:

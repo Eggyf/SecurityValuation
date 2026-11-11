@@ -21,6 +21,7 @@ from dcf_app.extraction.pdf import (
     extract_pdf_text,
     parse_financial_table,
 )
+from dcf_app.extraction.pdf_statements import extract_statements_from_pdf
 from dcf_app.extraction.sections import (
     find_balance_sheet_section,
     find_cash_flow_section,
@@ -28,18 +29,21 @@ from dcf_app.extraction.sections import (
     find_notes_section,
     find_section,
 )
+from dcf_app.extraction.statements import build_financial_statements
 
 __all__ = [
     "BALANCE_SHEET_MAP",
     "CASH_FLOW_MAP",
     "INCOME_STATEMENT_MAP",
     "NOTES_MAP",
+    "build_financial_statements",
     "extract_financials",
     "extract_from_html",
     "extract_from_pdf",
     "extract_ixbrl",
     "extract_pdf_tables",
     "extract_pdf_text",
+    "extract_statements_from_pdf",
     "find_balance_sheet_section",
     "find_cash_flow_section",
     "find_income_statement_section",

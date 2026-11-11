@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from dcf_app.extraction import extract_financials, validate_extraction
 from dcf_app.extraction.mapping import map_concept, normalize_concept
-from dcf_app.extraction.orchestrator import extract_from_pdf
 from dcf_app.models.financials import FinancialStatements
 
 
@@ -41,16 +38,6 @@ def test_map_concept_unknown() -> None:
     """Concepto desconocido → None."""
 
     assert map_concept("unknown:Concept", "income") is None
-
-
-def test_extract_from_pdf_returns_financials() -> None:
-    """La extracción de PDF devuelve FinancialStatements."""
-    pdf_path = Path("10-ks/MSFT/MSFT 10-K.pdf")
-    if not pdf_path.exists():
-        pytest.skip("PDF no disponible")
-    result = extract_from_pdf(pdf_path)
-    assert isinstance(result, FinancialStatements)
-    assert result.company_name == "MSFT 10-K"
 
 
 def test_validate_extraction_empty() -> None:

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Golden Sample Corporation 10-K</title>
+</head>
+<body>
+
+<!-- ============================================================
+     Fixture sintetico para golden tests de extraccion iXBRL.
+
+     Casos que debe cubrir el parser (tests/unit/test_golden_extraction.py):
+     - Duraciones anuales FY2024-FY2026 (P&L y flujos) e instantes
+       FY2025/FY2026 (balance, 2 columnas como manda Reg S-X).
+     - Contexto dimensional (segmento producto) cuyo fact debe descartarse.
+     - Contexto trimestral cuyo fact no debe entrar en el P&L anual.
+     - Fact duplicado (mismo concepto/periodo/valor) que debe colapsarse.
+     - Conflicto de conceptos: SalesRevenueNet tras Revenues con valor
+       distinto; gana el primero en orden de documento.
+     - D&A y SBC mapeados a P&L y flujo de caja a la vez.
+     - Nombre de la empresa via ix:nonNumeric dei:EntityRegistrantName.
+     ============================================================ -->
+
+<ix:header>
+  <ix:hidden>
+    <xbrli:xbrl>
+
+      <xbrli:context id="ctx-fy2026">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:startDate>2026-01-01</xbrli:startDate>
+          <xbrli:endDate>2026-12-31</xbrli:endDate>
+        </xbrli:period>
+      </xbrli:context>
+
+      <xbrli:context id="ctx-fy2025">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:startDate>2025-01-01</xbrli:startDate>
+          <xbrli:endDate>2025-12-31</xbrli:endDate>
+        </xbrli:period>
+      </xbrli:context>
+
+      <xbrli:context id="ctx-fy2024">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:startDate>2024-01-01</xbrli:startDate>
+          <xbrli:endDate>2024-12-31</xbrli:endDate>
+        </xbrli:period>
+      </xbrli:context>
+
+      <xbrli:context id="ctx-instant-2026">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:instant>2026-12-31</xbrli:instant>
+        </xbrli:period>
+      </xbrli:context>
+
+      <xbrli:context id="ctx-instant-2025">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:instant>2025-12-31</xbrli:instant>
+        </xbrli:period>
+      </xbrli:context>
+
+      <!-- Contexto dimensional: desglose por producto; sus facts se descartan. -->
+      <xbrli:context id="ctx-dim-fy2026">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+          <xbrli:segment>
+            <xbrldi:explicitMember dimension="gs:ProductAxis">gs:CloudMember</xbrldi:explicitMember>
+          </xbrli:segment>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:startDate>2026-01-01</xbrli:startDate>
+          <xbrli:endDate>2026-12-31</xbrli:endDate>
+        </xbrli:period>
+      </xbrli:context>
+
+      <!-- Contexto trimestral: no debe entrar en el P&L anual. -->
+      <xbrli:context id="ctx-q1-2026">
+        <xbrli:entity>
+          <xbrli:identifier scheme="http://www.sec.gov/CIK">0000000000</xbrli:identifier>
+        </xbrli:entity>
+        <xbrli:period>
+          <xbrli:startDate>2026-01-01</xbrli:startDate>
+          <xbrli:endDate>2026-03-31</xbrli:endDate>
+        </xbrli:period>
+      </xbrli:context>
+
+      <xbrli:unit id="usd">
+        <xbrli:measure>iso4217:USD</xbrli:measure>
+      </xbrli:unit>
+
+      <xbrli:unit id="shares">
+        <xbrli:measure>xbrli:shares</xbrli:measure>
+      </xbrli:unit>
+
+      <xbrli:unit id="usd-per-share">
+        <xbrli:numerator>iso4217:USD</xbrli:numerator>
+        <xbrli:denominator>xbrli:shares</xbrli:denominator>
+      </xbrli:unit>
+
+    </xbrli:xbrl>
+  </ix:hidden>
+</ix:header>
+
+<h1>Form 10-K</h1>
+<p>
+  <ix:nonNumeric name="dei:EntityRegistrantName" contextRef="ctx-fy2026"
+    >Golden Sample Corporation</ix:nonNumeric
+  >
+</p>
+
+<h2>INCOME STATEMENTS</h2>
+<p>(In millions, except per share amounts)</p>
+<table>
+  <tr>
+    <th>Year Ended December 31,</th><th>2026</th><th>2025</th><th>2024</th>
+  </tr>
+  <tr>
+    <td>Revenue</td>
+    <td><ix:nonFraction name="us-gaap:Revenues" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">1,210</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:Revenues" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">1,100</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:Revenues" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">1,000</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Cost of revenue</td>
+    <td><ix:nonFraction name="us-gaap:CostOfRevenue" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">484</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:CostOfRevenue" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">440</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:CostOfRevenue" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">400</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Gross profit</td>
+    <td><ix:nonFraction name="us-gaap:GrossProfit" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">726</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:GrossProfit" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">660</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:GrossProfit" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">600</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Selling, general and administrative</td>
+    <td><ix:nonFraction name="us-gaap:SellingGeneralAndAdministrativeExpense" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">121</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:SellingGeneralAndAdministrativeExpense" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">110</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:SellingGeneralAndAdministrativeExpense" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">100</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Research and development</td>
+    <td><ix:nonFraction name="us-gaap:ResearchAndDevelopmentExpense" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">170</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:ResearchAndDevelopmentExpense" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">160</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:ResearchAndDevelopmentExpense" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">150</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Operating income</td>
+    <td><ix:nonFraction name="us-gaap:OperatingIncomeLoss" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">435</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:OperatingIncomeLoss" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">390</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:OperatingIncomeLoss" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">350</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Interest expense</td>
+    <td><ix:nonFraction name="us-gaap:InterestExpense" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">24</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:InterestExpense" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">22</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:InterestExpense" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">20</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Earnings before tax</td>
+    <td><ix:nonFraction name="us-gaap:EarningsBeforeTax" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">411</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:EarningsBeforeTax" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">368</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:EarningsBeforeTax" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">330</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Income tax expense</td>
+    <td><ix:nonFraction name="us-gaap:IncomeTaxExpenseBenefit" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">82</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:IncomeTaxExpenseBenefit" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">74</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:IncomeTaxExpenseBenefit" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">66</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Net income</td>
+    <td><ix:nonFraction name="us-gaap:NetIncomeLoss" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">329</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:NetIncomeLoss" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">294</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:NetIncomeLoss" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">264</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Earnings per share, diluted</td>
+    <td><ix:nonFraction name="us-gaap:EarningsPerShareDiluted" contextRef="ctx-fy2026" unitRef="usd-per-share" decimals="-2">3.29</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:EarningsPerShareDiluted" contextRef="ctx-fy2025" unitRef="usd-per-share" decimals="-2">2.94</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:EarningsPerShareDiluted" contextRef="ctx-fy2024" unitRef="usd-per-share" decimals="-2">2.64</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Weighted average shares outstanding, diluted</td>
+    <td><ix:nonFraction name="us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding" contextRef="ctx-fy2026" unitRef="shares" scale="6" decimals="-6">100</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding" contextRef="ctx-fy2025" unitRef="shares" scale="6" decimals="-6">100</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding" contextRef="ctx-fy2024" unitRef="shares" scale="6" decimals="-6">100</ix:nonFraction></td>
+  </tr>
+</table>
+
+<!-- Nota MD&A: desglose dimensional por producto (NO debe llegar al modelo). -->
+<p>
+  Cloud revenue was
+  <ix:nonFraction name="us-gaap:Revenues" contextRef="ctx-dim-fy2026" unitRef="usd" scale="6" decimals="-6">700</ix:nonFraction>
+  million in fiscal year 2026.
+</p>
+
+<!-- Nota trimestral (NO debe entrar en el P&L anual). -->
+<p>
+  First quarter revenue was
+  <ix:nonFraction name="us-gaap:Revenues" contextRef="ctx-q1-2026" unitRef="usd" scale="6" decimals="-6">300</ix:nonFraction>
+  million.
+</p>
+
+<!-- Hecho duplicado: mismo concepto, periodo y valor; debe colapsarse. -->
+<p>
+  Total revenue of
+  <ix:nonFraction name="us-gaap:Revenues" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">1,210</ix:nonFraction>
+  million for the fiscal year.
+</p>
+
+<!-- Concepto alternativo para el mismo campo con valor DISTINTO:
+     gana el primero en orden de documento (us-gaap:Revenues = 1,210). -->
+<p>
+  Net sales were
+  <ix:nonFraction name="us-gaap:SalesRevenueNet" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">1,500</ix:nonFraction>
+  million under the old presentation.
+</p>
+
+<h2>BALANCE SHEETS</h2>
+<p>(In millions)</p>
+<table>
+  <tr><th>As of December 31,</th><th>2026</th><th>2025</th></tr>
+  <tr>
+    <td>Cash and cash equivalents</td>
+    <td><ix:nonFraction name="us-gaap:CashAndCashEquivalentsAtCarryingValue" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">500</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:CashAndCashEquivalentsAtCarryingValue" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">450</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Short-term investments</td>
+    <td><ix:nonFraction name="us-gaap:ShortTermInvestments" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">200</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:ShortTermInvestments" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">180</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Accounts receivable, net</td>
+    <td><ix:nonFraction name="us-gaap:AccountsReceivableNetCurrent" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">300</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:AccountsReceivableNetCurrent" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">270</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Inventory</td>
+    <td><ix:nonFraction name="us-gaap:InventoryNet" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">150</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:InventoryNet" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">140</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Total assets</td>
+    <td><ix:nonFraction name="us-gaap:Assets" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">2,000</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:Assets" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">1,800</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Accounts payable</td>
+    <td><ix:nonFraction name="us-gaap:AccountsPayableCurrent" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">250</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:AccountsPayableCurrent" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">230</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Long-term debt</td>
+    <td><ix:nonFraction name="us-gaap:LongTermDebtNoncurrent" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">800</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:LongTermDebtNoncurrent" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">850</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Total stockholders' equity</td>
+    <td><ix:nonFraction name="us-gaap:StockholdersEquity" contextRef="ctx-instant-2026" unitRef="usd" scale="6" decimals="-6">950</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:StockholdersEquity" contextRef="ctx-instant-2025" unitRef="usd" scale="6" decimals="-6">870</ix:nonFraction></td>
+  </tr>
+</table>
+
+<h2>CASH FLOWS STATEMENTS</h2>
+<p>(In millions)</p>
+<table>
+  <tr><th>Year Ended December 31,</th><th>2026</th><th>2025</th><th>2024</th></tr>
+  <tr>
+    <td>Net cash from operations</td>
+    <td><ix:nonFraction name="us-gaap:NetCashProvidedByUsedInOperatingActivities" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">484</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:NetCashProvidedByUsedInOperatingActivities" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">440</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:NetCashProvidedByUsedInOperatingActivities" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">400</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Additions to property and equipment</td>
+    <td><ix:nonFraction name="us-gaap:PaymentsToAcquirePropertyPlantAndEquipment" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6" sign="-">140</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:PaymentsToAcquirePropertyPlantAndEquipment" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6" sign="-">130</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:PaymentsToAcquirePropertyPlantAndEquipment" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6" sign="-">120</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Depreciation, depletion and amortization</td>
+    <td><ix:nonFraction name="us-gaap:DepreciationDepletionAndAmortization" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">100</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:DepreciationDepletionAndAmortization" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">95</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:DepreciationDepletionAndAmortization" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">90</ix:nonFraction></td>
+  </tr>
+  <tr>
+    <td>Stock-based compensation</td>
+    <td><ix:nonFraction name="us-gaap:ShareBasedCompensation" contextRef="ctx-fy2026" unitRef="usd" scale="6" decimals="-6">70</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:ShareBasedCompensation" contextRef="ctx-fy2025" unitRef="usd" scale="6" decimals="-6">65</ix:nonFraction></td>
+    <td><ix:nonFraction name="us-gaap:ShareBasedCompensation" contextRef="ctx-fy2024" unitRef="usd" scale="6" decimals="-6">60</ix:nonFraction></td>
+  </tr>
+</table>
+
+</body>
+</html>

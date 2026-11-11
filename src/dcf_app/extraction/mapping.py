@@ -115,7 +115,7 @@ BALANCE_SHEET_MAP: Final[dict[str, str]] = {
     "noncontrollinginterest": "non_controlling_interest",
     # Patrimonio
     "stockholdersequity": "total_equity",
-    "stockholders Equity": "total_equity",
+    "stockholdersequityincludingportionattributabletononcontrollinginterest": "total_equity",
     # Totales
     "assets": "total_assets",
     "liabilities": "total_liabilities",
@@ -129,7 +129,7 @@ CASH_FLOW_MAP: Final[dict[str, str]] = {
     "netcashprovidedbyoperatingactivities": "cfo",
     # CapEx
     "paymentstoacquirepropertyplantandequipment": "capex",
-    "capitalExpenditures": "capex",
+    "capitalexpenditures": "capex",
     "paymentstoacquireproductiveassets": "capex",
     # D&A (en flujo de caja)
     "depreciationdepletionandamortization": "depreciation_amortization",
@@ -139,7 +139,8 @@ CASH_FLOW_MAP: Final[dict[str, str]] = {
     "allocatedsharebasedcompensationexpense": "sbc",
     # Variación de caja
     "cashcashequivalentsrestrictedcashandrestrictedcashequivalentsperiodincreasedecreaseincludingexchangerateeffect": "net_change_in_cash",  # noqa: E501
-    "netincreasein cash": "net_change_in_cash",
+    "cashcashequivalentsperiodincreasedecrease": "net_change_in_cash",
+    "netincreasedecreaseincash": "net_change_in_cash",
 }
 
 # Notas

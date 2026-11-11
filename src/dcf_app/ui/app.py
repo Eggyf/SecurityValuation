@@ -11,9 +11,9 @@ from typing import Any
 
 import streamlit as st
 
-from dcf_app.extraction import extract_ixbrl, extract_pdf_tables, extract_pdf_text
+from dcf_app.extraction import extract_financials, validate_extraction
 from dcf_app.models.assumptions import Assumptions, DiscountConvention, TerminalValueMethod
-from dcf_app.models.fact import Scale
+from dcf_app.models.fact import Fact, Scale
 from dcf_app.models.financials import FinancialStatements
 from dcf_app.validation import ValidationResult, ValidationStatus, has_errors, validate_all
 from dcf_app.valuation import run_dcf
@@ -58,28 +58,29 @@ DISCLAIMER = (
 
 
 def _extract_from_file(uploaded_file: Any) -> FinancialStatements | None:
-    """Extrae datos financieros de un archivo subido."""
+    """Extrae datos financieros de un archivo subido (AGENTS.md §6).
+
+    Delega en el orquestador: iXBRL si es HTML, parser de etiquetas si es
+    PDF. Muestra las advertencias de la extracción (degradación segura,
+    AGENTS.md §2.8).
+    """
     if uploaded_file is None:
         return None
 
     suffix = Path(uploaded_file.name).suffix.lower()
+    if suffix not in (".html", ".htm", ".xhtml", ".pdf"):
+        st.error(f"Formato no soportado: {suffix}")
+        return None
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(uploaded_file.getvalue())
         tmp_path = tmp.name
 
     try:
-        if suffix in (".html", ".htm", ".xhtml"):
-            data = extract_ixbrl(tmp_path)
-            # Convertir facts a FinancialStatements (simplificado)
-            return _facts_to_financials(data, uploaded_file.name)
-        elif suffix == ".pdf":
-            text = extract_pdf_text(tmp_path)
-            tables = extract_pdf_tables(tmp_path)
-            return _pdf_to_financials(text, tables, uploaded_file.name)
-        else:
-            st.error(f"Formato no soportado: {suffix}")
-            return None
+        financials = extract_financials(tmp_path)
+        for warning in validate_extraction(financials):
+            st.warning(warning)
+        return financials
     except Exception as e:
         st.error(f"Error en la extracción: {e}")
         return None
@@ -87,47 +88,54 @@ def _extract_from_file(uploaded_file: Any) -> FinancialStatements | None:
         Path(tmp_path).unlink(missing_ok=True)
 
 
-def _facts_to_financials(data: dict[str, Any], file_name: str) -> FinancialStatements:
-    """Convierte los facts extraídos a FinancialStatements (simplificado)."""
-    from dcf_app.models.financials import (
-        FinancialStatements,
-    )
+def _fact_display(fact: Fact | None) -> str:
+    """Formatea un Fact para mostrar en la UI, según su unidad.
 
-    # Por ahora, creamos un FinancialStatements vacío con el nombre de la empresa
-    company = data.get("company_name") or file_name
-    return FinancialStatements(
-        company_name=company,
-        income_statements=[],
-        balance_sheets=[],
-        cash_flow_statements=[],
-    )
-
-
-def _pdf_to_financials(
-    text: str, tables: list[dict[str, Any]], file_name: str
-) -> FinancialStatements:
-    """Convierte datos extraídos de PDF a FinancialStatements (simplificado)."""
-    from dcf_app.models.financials import (
-        FinancialStatements,
-    )
-
-    company = file_name.replace(".pdf", "")
-    return FinancialStatements(
-        company_name=company,
-        income_statements=[],
-        balance_sheets=[],
-        cash_flow_statements=[],
-    )
-
-
-def _fact_display(fact: Any) -> str:
-    """Formatea un Fact para mostrar en la UI."""
+    - Moneda: normalizada a millones (AGENTS.md §2.6).
+    - ``USD_per_share``: valor por acción tal cual (sin reescalar).
+    - ``shares``: millones de acciones.
+    - ``ratio``: porcentaje.
+    """
     if fact is None or fact.value is None:
         return "—"
-    val = fact.to_scale(Scale.MILLIONS)
-    if val is None:
+
+    if fact.unit == "USD_per_share":
+        return f"${fact.value:,.2f}"
+    if fact.unit == "shares":
+        millions = fact.to_scale(Scale.MILLIONS)
+        return "—" if millions is None else f"{millions:,.1f} M acc."
+    if fact.unit == "ratio":
+        return f"{fact.value:.1%}"
+
+    millions = fact.to_scale(Scale.MILLIONS)
+    if millions is None:
         return "—"
-    return f"{val:,.2f} M"
+    symbol = "$" if fact.unit.startswith("USD") else f"{fact.unit} "
+    return f"{symbol}{millions:,.1f} M"
+
+
+def _fact_source(fact: Fact | None) -> str:
+    """Procedencia de una cifra para mostrar en la UI (AGENTS.md §2.3)."""
+    if fact is None or fact.value is None:
+        return ""
+    return fact.source.location or fact.source.concept or ""
+
+
+def _render_statement_table(title: str, rows: list[tuple[str, Fact | None]]) -> None:
+    """Renderiza una tabla de partidas con valor y fuente (trazabilidad)."""
+    import pandas as pd
+
+    st.subheader(title)
+    st.dataframe(
+        pd.DataFrame(
+            {
+                "Partida": [label for label, _ in rows],
+                "Valor": [_fact_display(fact) for _, fact in rows],
+                "Fuente": [_fact_source(fact) for _, fact in rows],
+            }
+        ),
+        use_container_width=True,
+    )
 
 
 def _render_validation_results(results: list[ValidationResult]) -> None:
@@ -354,88 +362,70 @@ def main() -> None:
             if financials.income_statements:
                 st.markdown(f"**Ejercicios:** {financials.fiscal_years}")
 
-            # Mostrar estados financieros
+            # Mostrar estados financieros (ultimo ejercicio de cada estado)
             if financials.income_statements:
-                st.subheader("Cuenta de resultados (último ejercicio)")
                 last_income = financials.income_statements[-1]
-                data = {
-                    "Partida": [
-                        "Revenue",
-                        "COGS",
-                        "Gross Profit",
-                        "SG&A",
-                        "R&D",
-                        "D&A",
-                        "EBIT",
-                        "Interest",
-                        "Pretax",
-                        "Tax",
-                        "Net Income",
-                        "Diluted EPS",
-                        "Diluted Shares",
-                        "SBC",
+                _render_statement_table(
+                    f"Cuenta de resultados (FY{last_income.fiscal_year})",
+                    [
+                        ("Revenue", last_income.revenue),
+                        ("COGS", last_income.cogs),
+                        ("Gross Profit", last_income.gross_profit),
+                        ("SG&A", last_income.sga),
+                        ("R&D", last_income.rd),
+                        ("D&A", last_income.depreciation_amortization),
+                        ("EBIT", last_income.ebit),
+                        ("Interest Expense", last_income.interest_expense),
+                        ("Pretax Income", last_income.pretax_income),
+                        ("Income Tax", last_income.income_tax_expense),
+                        ("Net Income", last_income.net_income),
+                        ("Diluted EPS", last_income.diluted_eps),
+                        ("Diluted Shares", last_income.diluted_weighted_shares),
+                        ("SBC", last_income.sbc),
                     ],
-                    "Valor": [
-                        _fact_display(last_income.revenue),
-                        _fact_display(last_income.cogs),
-                        _fact_display(last_income.gross_profit),
-                        _fact_display(last_income.sga),
-                        _fact_display(last_income.rd),
-                        _fact_display(last_income.depreciation_amortization),
-                        _fact_display(last_income.ebit),
-                        _fact_display(last_income.interest_expense),
-                        _fact_display(last_income.pretax_income),
-                        _fact_display(last_income.income_tax_expense),
-                        _fact_display(last_income.net_income),
-                        _fact_display(last_income.diluted_eps),
-                        _fact_display(last_income.diluted_weighted_shares),
-                        _fact_display(last_income.sbc),
-                    ],
-                }
-                import pandas as pd
-
-                st.dataframe(pd.DataFrame(data), use_container_width=True)
+                )
 
             if financials.balance_sheets:
-                st.subheader("Balance (último ejercicio)")
                 last_balance = financials.balance_sheets[-1]
-                data = {
-                    "Partida": [
-                        "Cash",
-                        "ST Investments",
-                        "AR",
-                        "Inventory",
-                        "AP",
-                        "Accrued Liab",
-                        "ST Debt",
-                        "LT Debt",
-                        "Leases (op. CP)",
-                        "Leases (op. LP)",
-                        "Preferred",
-                        "NCI",
-                        "Total Equity",
-                        "Total Assets",
-                        "Total Liabilities",
+                _render_statement_table(
+                    f"Balance (FY{last_balance.fiscal_year})",
+                    [
+                        ("Cash & Equivalents", last_balance.cash_and_equivalents),
+                        ("ST Investments", last_balance.short_term_investments),
+                        ("Accounts Receivable", last_balance.accounts_receivable),
+                        ("Inventory", last_balance.inventory),
+                        ("Accounts Payable", last_balance.accounts_payable),
+                        ("Accrued Liabilities", last_balance.accrued_liabilities),
+                        ("ST Debt", last_balance.short_term_debt),
+                        ("LT Debt", last_balance.long_term_debt),
+                        (
+                            "Leases op. (corriente)",
+                            last_balance.operating_lease_liabilities_current,
+                        ),
+                        (
+                            "Leases op. (no corriente)",
+                            last_balance.operating_lease_liabilities_noncurrent,
+                        ),
+                        ("Preferred Stock", last_balance.preferred_stock),
+                        ("Non-controlling Interest", last_balance.non_controlling_interest),
+                        ("Total Equity", last_balance.total_equity),
+                        ("Total Assets", last_balance.total_assets),
+                        ("Total Liabilities", last_balance.total_liabilities),
                     ],
-                    "Valor": [
-                        _fact_display(last_balance.cash_and_equivalents),
-                        _fact_display(last_balance.short_term_investments),
-                        _fact_display(last_balance.accounts_receivable),
-                        _fact_display(last_balance.inventory),
-                        _fact_display(last_balance.accounts_payable),
-                        _fact_display(last_balance.accrued_liabilities),
-                        _fact_display(last_balance.short_term_debt),
-                        _fact_display(last_balance.long_term_debt),
-                        _fact_display(last_balance.operating_lease_liabilities_current),
-                        _fact_display(last_balance.operating_lease_liabilities_noncurrent),
-                        _fact_display(last_balance.preferred_stock),
-                        _fact_display(last_balance.non_controlling_interest),
-                        _fact_display(last_balance.total_equity),
-                        _fact_display(last_balance.total_assets),
-                        _fact_display(last_balance.total_liabilities),
+                )
+
+            if financials.cash_flow_statements:
+                last_cash = financials.cash_flow_statements[-1]
+                _render_statement_table(
+                    f"Flujo de caja (FY{last_cash.fiscal_year})",
+                    [
+                        ("CFO", last_cash.cfo),
+                        ("CapEx", last_cash.capex),
+                        ("D&A", last_cash.depreciation_amortization),
+                        ("SBC", last_cash.sbc),
+                        ("Net Change in Cash", last_cash.net_change_in_cash),
                     ],
-                }
-                st.dataframe(pd.DataFrame(data), use_container_width=True)
+                )
 
             # Validaciones
             st.subheader("Validaciones de integridad")

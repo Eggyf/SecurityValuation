@@ -115,7 +115,13 @@ class FinancialStatements(BaseModel):
 
     @model_validator(mode="after")
     def _statements_aligned(self) -> Self:
-        """Exige ejercicios únicos, ordenados y alineados entre estados."""
+        """Exige ejercicios únicos, ordenados y un año base común.
+
+        Reg S-X: el balance de un 10-K presenta 2 ejercicios y el P&L y los
+        flujos 3, así que NO se exigen conjuntos idénticos; se exige que el
+        ejercicio más reciente (el año base de la valoración) esté presente
+        en los tres estados, y que cada lista esté ordenada y sin duplicados.
+        """
         statements_by_state: list[
             tuple[str, list[IncomeStatement] | list[BalanceSheet] | list[CashFlowStatement]]
         ] = [
@@ -123,7 +129,7 @@ class FinancialStatements(BaseModel):
             ("balance_sheets", self.balance_sheets),
             ("cash_flow_statements", self.cash_flow_statements),
         ]
-        year_sets: list[set[int]] = []
+        latest_years: list[int] = []
         for name, statements in statements_by_state:
             years = [statement.fiscal_year for statement in statements]
             if len(set(years)) != len(years):
@@ -132,9 +138,17 @@ class FinancialStatements(BaseModel):
                 raise ValueError(
                     f"{name}: los ejercicios deben estar en orden ascendente ({years})."
                 )
-            year_sets.append(set(years))
-        if not (year_sets[0] == year_sets[1] == year_sets[2]):
+            if years:
+                latest_years.append(years[-1])
+        non_empty = [bool(s) for _, s in statements_by_state]
+        if any(non_empty) and not all(non_empty):
             raise ValueError(
-                f"Los tres estados deben cubrir los mismos ejercicios fiscales: {year_sets}."
+                "Los tres estados deben estar presentes: no puede haber unos "
+                "con datos y otros vacíos."
+            )
+        if latest_years and len(set(latest_years)) != 1:
+            raise ValueError(
+                "El ejercicio fiscal más reciente debe coincidir en los tres "
+                f"estados (año base de la valoración): {latest_years}."
             )
         return self
