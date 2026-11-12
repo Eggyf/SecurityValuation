@@ -1,0 +1,57 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "plan",
+  "permissions": [
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    { "action": "edit", "resource": "*.env", "effect": "deny" },
+    { "action": "edit", "resource": "*.env.*", "effect": "deny" },
+    { "action": "edit", "resource": "*.env.example", "effect": "allow" },
+    { "action": "edit", "resource": "tests/fixtures/*", "effect": "ask" },
+    { "action": "webfetch", "resource": "*", "effect": "ask" },
+    { "action": "websearch", "resource": "*", "effect": "ask" },
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "pwd", "effect": "allow" },
+    { "action": "shell", "resource": "ls *", "effect": "allow" },
+    { "action": "shell", "resource": "cat *", "effect": "allow" },
+    { "action": "shell", "resource": "head *", "effect": "allow" },
+    { "action": "shell", "resource": "tail *", "effect": "allow" },
+    { "action": "shell", "resource": "wc *", "effect": "allow" },
+    { "action": "shell", "resource": "grep *", "effect": "allow" },
+    { "action": "shell", "resource": "rg *", "effect": "allow" },
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git log *", "effect": "allow" },
+    { "action": "shell", "resource": "git show *", "effect": "allow" },
+    { "action": "shell", "resource": "uv run pytest *", "effect": "allow" },
+    { "action": "shell", "resource": "uv run ruff *", "effect": "allow" },
+    { "action": "shell", "resource": "uv run mypy *", "effect": "allow" },
+    { "action": "shell", "resource": "git commit *", "effect": "ask" },
+    { "action": "shell", "resource": "pip install *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo *", "effect": "deny" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+    { "action": "shell", "resource": "git reset --hard *", "effect": "deny" },
+    { "action": "shell", "resource": "git clean *", "effect": "deny" }
+  ],
+  "commands": {
+    "check": {
+      "description": "Tests, lint y tipos",
+      "agent": "build",
+      "template": "Ejecuta `uv run pytest -q -m \"not network\"`, `uv run ruff check .` y `uv run mypy src`. Resume el resultado. Corrige solo los fallos relacionados con el cambio actual; si algo falla por otra causa, repórtalo sin tocarlo."
+    },
+    "review": {
+      "description": "Revisión financiera y de código de los cambios actuales",
+      "agent": "reviewer",
+      "template": "Revisa estos cambios con la skill valuation-sanity-check y las reglas de AGENTS.md. Devuelve avisos con su cifra concreta y lo que no se pudo comprobar.\n\n!`git diff HEAD`"
+    },
+    "new-module": {
+      "description": "Añadir un módulo de valoración o análisis",
+      "agent": "plan",
+      "template": "Usa la skill new-valuation-module para añadir: $ARGUMENTS. Propón un plan corto (entradas, salidas, fórmulas, tests, UI) y espera confirmación antes de editar."
+    }
+  }
+}

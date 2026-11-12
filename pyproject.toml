@@ -20,6 +20,7 @@ dependencies = [
     "httpx>=0.27",
     "scipy>=1.14",
     "plotly>=5.23",
+    "xlrd>=2.0",
 ]
 
 [dependency-groups]
@@ -92,7 +93,7 @@ show_error_codes = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["plotly.*", "streamlit.*", "fitz.*", "openpyxl.*"]
+module = ["plotly.*", "streamlit.*", "fitz.*", "openpyxl.*", "scipy.*", "pandas.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

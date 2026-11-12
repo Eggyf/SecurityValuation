@@ -13,6 +13,15 @@ from typing import Any
 import streamlit as st
 
 from dcf_app.assumptions.defaults import suggest_defaults
+from dcf_app.data_sources import (
+    get_cik_from_ticker,
+    get_damodaran_erp,
+    get_edgar_provider,
+    get_latest_filing_info,
+    get_market_data,
+    get_risk_free_rate,
+)
+from dcf_app.data_sources.base import InvalidTickerError, NetworkError
 from dcf_app.export import export_to_excel_bytes
 from dcf_app.extraction import extract_financials, validate_extraction
 from dcf_app.models.assumptions import Assumptions, DiscountConvention, TerminalValueMethod
@@ -91,6 +100,76 @@ def _extract_from_file(uploaded_file: Any) -> FinancialStatements | None:
         return None
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+
+
+def _download_from_edgar(ticker: str) -> FinancialStatements | None:
+    """Descarga y extrae el último 10-K de un ticker desde EDGAR (AGENTS.md §13.4).
+
+    Args:
+        ticker: símbolo de la empresa (ej: "AAPL").
+
+    Returns:
+        FinancialStatements o None si falla.
+    """
+    try:
+        with st.spinner(f"Buscando {ticker} en EDGAR..."):
+            # Resolver ticker a CIK
+            cik = get_cik_from_ticker(ticker)
+            st.info(f"CIK: {cik}")
+
+            # Obtener info del último 10-K
+            filing_info = get_latest_filing_info(cik, "10-K")
+            if not filing_info:
+                st.error(f"No se encontró ningún 10-K para {ticker}")
+                return None
+
+            accession = filing_info.get("accessionNumber")
+            primary_doc = filing_info.get("primaryDocument")
+            if not isinstance(accession, str):
+                st.error("No se encontró el número de acceso del filing")
+                return None
+            st.info(f"Último 10-K: {accession}")
+
+            # Descargar el filing
+            provider = get_edgar_provider()
+            filing_result = provider.download_filing(
+                accession,
+                cik=cik,
+                primary_document=(
+                    primary_doc if isinstance(primary_doc, str) else None
+                ),
+            )
+            if not isinstance(filing_result.data, bytes):
+                st.error("El descargo no devolvió bytes (formato desconocido)")
+                return None
+
+            # Determinar sufijo del archivo temporal
+            suffix = ".html"
+            if primary_doc and primary_doc.lower().endswith(".pdf"):
+                suffix = ".pdf"
+
+            # Guardar en temporal y extraer (mismo pipeline que archivo local)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                tmp.write(filing_result.data)
+                tmp_path = tmp.name
+
+            try:
+                financials = extract_financials(tmp_path)
+                for warning in validate_extraction(financials):
+                    st.warning(warning)
+                return financials
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+
+    except InvalidTickerError as e:
+        st.error(f"Ticker inválido: {e}")
+        return None
+    except NetworkError as e:
+        st.error(f"Error de red con EDGAR: {e}")
+        return None
+    except Exception as e:
+        st.error(f"Error inesperado descargando desde EDGAR: {e}")
+        return None
 
 
 def _fact_display(fact: Fact | None) -> str:
@@ -195,6 +274,44 @@ def _render_assumptions_form() -> Assumptions | None:
     """
     st.subheader("Supuestos de valoración")
 
+    # Intentar precargar datos de mercado (FRED + Twelve Data + Damodaran)
+    rf_default = None
+    try:
+        rf_val = get_risk_free_rate()
+        if rf_val is not None:
+            rf_default = rf_val
+            st.caption(f"📡 Rf precargada desde FRED (DGS10): {rf_val:.2f} %")
+    except Exception:
+        pass
+
+    erp_default = None
+    try:
+        erp_val = get_damodaran_erp()
+        if erp_val is not None:
+            erp_default = erp_val * 100.0  # Convertir a porcentaje
+            st.caption(f"📡 ERP precargada desde Damodaran: {erp_val:.2%}")
+    except Exception:
+        pass
+
+    # Precargar precio y market cap desde Twelve Data
+    price_default = None
+    market_cap_default = None
+    shares_default_td = None
+    ticker_for_market = st.session_state.get("edgar_ticker", "")
+    if ticker_for_market:
+        try:
+            md = get_market_data(ticker_for_market)
+            if md:
+                price_default = md.get("price")
+                market_cap_default = md.get("market_cap")
+                shares_default_td = md.get("shares_outstanding")
+                if price_default:
+                    st.caption(f"📡 Precio precargado desde Twelve Data: ${price_default:.2f}")
+                if market_cap_default:
+                    st.caption(f"📡 Market cap precargado: {market_cap_default:,.0f} M")
+        except Exception:
+            pass
+
     financials = st.session_state.financials
     suggested = suggest_defaults(financials) if financials is not None else None
     income_years: tuple[int, int] | None = None
@@ -252,7 +369,7 @@ def _render_assumptions_form() -> Assumptions | None:
                 "Tasa libre de riesgo Rf (%)",
                 0.0,
                 10.0,
-                None,
+                rf_default,
                 0.1,
                 help="Bono del Tesoro de EE. UU. a 10 años. No está en el 10-K (AGENTS.md §7.3).",
             )
@@ -270,7 +387,7 @@ def _render_assumptions_form() -> Assumptions | None:
                 "Prima de riesgo del mercado ERP (%)",
                 0.0,
                 15.0,
-                None,
+                erp_default,
                 0.5,
                 help="Referencia: datasets de Damodaran. No está en el 10-K (AGENTS.md §7.3).",
             )
@@ -305,7 +422,7 @@ def _render_assumptions_form() -> Assumptions | None:
             "Capitalización de mercado (M USD)",
             0.0,
             1e8,
-            None,
+            market_cap_default,
             10.0,
             help="Aproximación si no la conoces: precio x acciones en circulación.",
         )
@@ -325,11 +442,13 @@ def _render_assumptions_form() -> Assumptions | None:
             "Precio de la acción (USD)",
             0.0,
             1e4,
-            None,
+            price_default,
             1.0,
             help="Precio actual; necesario para el upside/downside y la dilución (AGENTS.md §7.6).",
         )
         shares_default = suggested.diluted_weighted_shares if suggested is not None else None
+        if shares_default_td is not None and shares_default is None:
+            shares_default = shares_default_td / 1e6  # Convertir a millones
         shares = st.number_input(
             "Acciones en circulación (M)",
             0.0,
@@ -491,11 +610,65 @@ def main() -> None:
     st.title("📊 Valoración DCF desde Form 10-K")
     st.markdown(DISCLAIMER)
 
-    tabs = st.tabs(["1. Subir 10-K", "2. Revisar datos", "3. Supuestos", "4. Resultados"])
+    tabs = st.tabs(
+        [
+            "1. Subir 10-K",
+            "2. Revisar datos",
+            "3. Supuestos",
+            "4. Resultados",
+            "5. Reverse DCF",
+            "6. Calidad",
+        ]
+    )
 
     # --- Tab 1: Subir 10-K ---
     with tabs[0]:
         st.header("Subir archivo 10-K")
+
+        # Modo online/offline
+        online_mode = st.checkbox(
+            "Modo online (descargar desde EDGAR)", value=st.session_state.get("online_mode", False)
+        )
+        st.session_state.online_mode = online_mode
+
+        if online_mode:
+            st.markdown("**⚠️ Requisitos modo online:**")
+            st.markdown("- Variable de entorno `SEC_USER_AGENT` configurada (ver `.env.example`)")
+            st.markdown("- Conexión a internet")
+            st.markdown("- EDGAR puede limitar a 10 peticiones/s")
+
+            ticker_input = (
+                st.text_input(
+                    "Introduce el ticker (ej: AAPL, MSFT)",
+                    value=st.session_state.get("edgar_ticker", ""),
+                )
+                .upper()
+                .strip()
+            )
+            st.session_state.edgar_ticker = ticker_input
+
+            if ticker_input and st.button("Buscar en EDGAR"):
+                if not ticker_input:
+                    st.error("Introduce un ticker")
+                else:
+                    financials = _download_from_edgar(ticker_input)
+                    if financials is not None:
+                        st.session_state.financials = financials
+                        st.session_state.uploaded_file_name = f"{ticker_input}_10-K_EDGAR"
+                        st.session_state.validation_results = validate_all(financials)
+                        st.success(f"10-K de {ticker_input} descargado y extraído correctamente.")
+                        st.info(f"Empresa: {financials.company_name}")
+                        if financials.income_statements:
+                            st.info(f"Ejercicios: {financials.fiscal_years}")
+                        else:
+                            st.warning(
+                                "No se encontraron estados financieros. Introduce los datos manualmente en la pestaña de Supuestos."  # noqa: E501
+                            )
+                        st.rerun()
+
+        # Subida local (siempre disponible)
+        st.markdown("---")
+        st.subheader("O: sube un archivo local")
         uploaded = st.file_uploader(
             "Selecciona un archivo 10-K (HTML o PDF)",
             type=["html", "htm", "xhtml", "pdf"],
@@ -658,6 +831,196 @@ def main() -> None:
                     )
                 except Exception as e:
                     st.error(f"Error generando el Excel: {e}")
+
+    # --- Tab 5: Reverse DCF ---
+    with tabs[4]:
+        st.header("Reverse DCF — ¿Qué descuenta el mercado?")
+        st.markdown(
+            "Dado el precio de mercado, resuelve qué crecimiento o margen "
+            "tendría que cumplirse para que el DCF dé ese precio."
+        )
+
+        result = st.session_state.dcf_result
+        financials = st.session_state.financials
+        assumptions = st.session_state.assumptions
+
+        if result is None or financials is None or assumptions is None:
+            st.info("Ejecuta primero el DCF en la pestaña de Supuestos.")
+        else:
+            market_price = assumptions.stock_price_current
+            if market_price is None or market_price <= 0:
+                st.warning("Introduce el precio de la acción en los Supuestos.")
+            else:
+                st.markdown(f"**Precio de mercado:** ${market_price:.2f}")
+
+                if st.button("Calcular Reverse DCF"):
+                    from dcf_app.valuation.reverse_dcf import (
+                        reverse_dcf_growth,
+                        reverse_dcf_margin,
+                    )
+
+                    with st.spinner("Calculando..."):
+                        r_growth = reverse_dcf_growth(assumptions, financials, market_price)
+                        r_margin = reverse_dcf_margin(assumptions, financials, market_price)
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.subheader("Crecimiento inicial implícito")
+                        if r_growth.has_solution and r_growth.implied_value is not None:
+                            st.metric("Crecimiento implícito", f"{r_growth.implied_value:.1%}")
+                            st.markdown(r_growth.message)
+                            if r_growth.historical_comparison:
+                                hist = r_growth.historical_comparison
+                                cagr_3y = hist.get("cagr_3y")
+                                if cagr_3y is not None:
+                                    st.caption(f"CAGR 3 años histórico: {cagr_3y:.1%}")
+                                cagr_5y = hist.get("cagr_5y")
+                                if cagr_5y is not None:
+                                    st.caption(f"CAGR 5 años histórico: {cagr_5y:.1%}")
+                        else:
+                            st.warning(r_growth.message)
+
+                    with col2:
+                        st.subheader("Margen EBIT implícito")
+                        if r_margin.has_solution and r_margin.implied_value is not None:
+                            st.metric("Margen EBIT implícito", f"{r_margin.implied_value:.1%}")
+                            st.markdown(r_margin.message)
+                            if r_margin.historical_comparison:
+                                hist = r_margin.historical_comparison
+                                max_m = hist.get("max_margin")
+                                if max_m is not None:
+                                    st.caption(f"Margen EBIT máximo histórico: {max_m:.1%}")
+                                avg_m = hist.get("avg_margin")
+                                if avg_m is not None:
+                                    st.caption(f"Margen EBIT medio histórico: {avg_m:.1%}")
+                        else:
+                            st.warning(r_margin.message)
+
+    # --- Tab 6: Calidad ---
+    with tabs[5]:
+        st.header("Scores de calidad y ratios")
+        st.markdown(
+            "Piotroski F-Score, Altman Z-Score, Beneish M-Score y ratios "
+            "financieros. Son señales de alerta, no veredictos de inversión."
+        )
+
+        financials = st.session_state.financials
+        if financials is None:
+            st.info("Sube un 10-K en la pestaña 1 para ver los scores.")
+        else:
+            from dcf_app.analysis import (
+                altman_z_score,
+                beneish_m_score,
+                earnings_quality,
+                extract_beneish_years,
+                extract_year_data,
+                financial_ratios,
+                piotroski_f_score,
+            )
+
+            cur = extract_year_data(financials, -1)
+            prev = (
+                extract_year_data(financials, -2)
+                if len(financials.income_statements) >= 2
+                else None
+            )
+
+            # Piotroski (necesita 2 ejercicios)
+            if prev is not None:
+                prev_prev_assets = None
+                if len(financials.income_statements) >= 3:
+                    prev_prev = extract_year_data(financials, -3)
+                    prev_prev_assets = prev_prev.total_assets
+                piot = piotroski_f_score(cur, prev, prev_prev_assets)
+                st.subheader("Piotroski F-Score")
+                if piot.value is not None:
+                    st.metric("F-Score", f"{piot.value:.0f} / 9")
+                    with st.expander("Desglose"):
+                        for k, v in piot.components.items():
+                            st.write(f"- {k}: {'✅' if v else '❌'}")
+                else:
+                    st.warning(f"Datos insuficientes: {', '.join(piot.missing)}")
+
+            # Altman Z-Score
+            wc = (
+                (cur.current_assets or 0) - (cur.current_liabilities_total or 0)
+                if cur.current_assets and cur.current_liabilities_total
+                else None
+            )
+            z = altman_z_score(
+                "Zdoubleprime",
+                working_capital=wc,
+                retained_earnings=None,
+                ebit=cur.ebit,
+                equity=cur.total_liabilities,  # proxy contable
+                sales=cur.revenue,
+                total_assets=cur.total_assets,
+                total_liabilities=cur.total_liabilities,
+            )
+            st.subheader("Altman Z-Score (Z'')")
+            if z.value is not None:
+                st.metric("Z-Score", f"{z.value:.2f}")
+                st.caption(f"Zona: {z.components.get('zone', 'N/A')}")
+                with st.expander("Componentes"):
+                    for k, v in z.components.items():
+                        if k not in ("zone", "zones"):
+                            st.write(f"- {k}: {v:.4f}" if isinstance(v, float) else f"- {k}: {v}")
+            else:
+                st.warning(f"Datos insuficientes: {', '.join(z.missing)}")
+
+            # Beneish M-Score
+            beneish_years = extract_beneish_years(financials)
+            if beneish_years is not None:
+                m = beneish_m_score(beneish_years[1], beneish_years[0])
+                st.subheader("Beneish M-Score")
+                if m.value is not None:
+                    st.metric("M-Score", f"{m.value:.2f}")
+                    st.caption(m.note)
+                    with st.expander("Componentes"):
+                        for k, v in m.components.items():
+                            st.write(f"- {k}: {v:.4f}")
+                else:
+                    st.warning(f"Datos insuficientes: {', '.join(m.missing)}")
+            else:
+                st.info("Se necesitan 2 ejercicios para Beneish M-Score.")
+
+            # Calidad de beneficios
+            if cur.net_income is not None and cur.cfo is not None and cur.total_assets is not None:
+                eq = earnings_quality(cur.net_income, cur.cfo, cur.total_assets)
+                st.subheader("Calidad de beneficios")
+                if eq.value is not None:
+                    st.metric("CFO / Beneficio neto", f"{eq.value:.2f}")
+                    accruals = eq.components.get("accruals_ratio")
+                    if accruals is not None:
+                        st.caption(f"Ratio de devengos: {accruals:.4f}")
+                else:
+                    st.warning(f"Datos insuficientes: {', '.join(eq.missing)}")
+
+            # Ratios financieros
+            ratios = financial_ratios(cur)
+            st.subheader("Ratios financieros")
+            ratio_cols = st.columns(3)
+            with ratio_cols[0]:
+                if ratios.get("gross_margin") is not None:
+                    st.metric("Margen bruto", f"{ratios['gross_margin']:.1%}")
+                if ratios.get("ebit_margin") is not None:
+                    st.metric("Margen EBIT", f"{ratios['ebit_margin']:.1%}")
+                if ratios.get("roe") is not None:
+                    st.metric("ROE", f"{ratios['roe']:.1%}")
+            with ratio_cols[1]:
+                if ratios.get("dso") is not None:
+                    st.metric("DSO (días)", f"{ratios['dso']:.0f}")
+                if ratios.get("dio") is not None:
+                    st.metric("DIO (días)", f"{ratios['dio']:.0f}")
+                if ratios.get("dpo") is not None:
+                    st.metric("DPO (días)", f"{ratios['dpo']:.0f}")
+            with ratio_cols[2]:
+                if ratios.get("cash_conversion_cycle") is not None:
+                    st.metric("CCC (días)", f"{ratios['cash_conversion_cycle']:.0f}")
+                if ratios.get("interest_coverage") is not None:
+                    st.metric("Cobertura intereses", f"{ratios['interest_coverage']:.1f}x")
+                if ratios.get("fcf_conversion") is not None:
+                    st.metric("Conversión FCF", f"{ratios['fcf_conversion']:.2f}")
 
     # Disclaimer final
     st.markdown("---")

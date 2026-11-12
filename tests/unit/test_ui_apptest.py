@@ -109,12 +109,12 @@ def _make_assumptions() -> Assumptions:
 
 
 def test_app_renders_empty() -> None:
-    """Sin datos en sesion, la app renderiza las 4 pestanas sin excepciones."""
+    """Sin datos en sesion, la app renderiza las 6 pestanas sin excepciones."""
     at = AppTest.from_file(str(APP), default_timeout=60)
     at.run()
 
     assert not at.exception
-    assert len(at.tabs) == 4
+    assert len(at.tabs) == 6
     assert len(at.download_button) == 0
 
 

@@ -39,11 +39,16 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 _STATEMENT_TITLES: dict[str, re.Pattern[str]] = {
     "income": re.compile(
-        r"(?:consolidated )?(?:income statements?|statements of income)", re.IGNORECASE
+        r"(?:consolidated )?(?:statements? of (?:income|operations|earnings|comprehensive income)"
+        r"|income statements?)",
+        re.IGNORECASE,
     ),
-    "balance": re.compile(r"(?:consolidated )?balance sheets?", re.IGNORECASE),
+    "balance": re.compile(
+        r"(?:consolidated )?balance sheets?", re.IGNORECASE
+    ),
     "cashflow": re.compile(
-        r"(?:consolidated )?(?:cash flows statements?|statements of cash flows)", re.IGNORECASE
+        r"(?:consolidated )?(?:statements? of cash flows?|cash flows? statements?)",
+        re.IGNORECASE,
     ),
 }
 
@@ -236,13 +241,32 @@ def _find_statement_pages(doc: Any) -> dict[str, int]:  # noqa: ANN401 (borde de
     """Localiza la primera pagina de cada estado financiero."""
     found: dict[str, int] = {}
     for page_num, page in enumerate(doc):
-        lines = [_normalize_line(t) for t in page.get_text().splitlines() if t.strip()]
+        text = page.get_text()
+        lines = [_normalize_line(t) for t in text.splitlines() if t.strip()]
         # El titulo aparece al principio de la pagina (antes de las cifras).
-        for line in lines[:12]:
+        for line in lines[:25]:
             for statement_type, pattern in _STATEMENT_TITLES.items():
                 if statement_type not in found and pattern.fullmatch(line):
                     found[statement_type] = page_num
                     break
+        # Fallback: buscar por palabras clave si no se encontró por título exacto
+        if len(found) < 3:
+            page_text_lower = text.lower()
+            income_kw = ["revenue", "net income", "operating income", "cost of"]
+            balance_kw = ["total assets", "total liabilities", "stockholders", "shareholders"]
+            cashflow_kw = ["cash flow", "operating activities", "investing activities"]
+
+            income_score = sum(1 for kw in income_kw if kw in page_text_lower)
+            balance_score = sum(1 for kw in balance_kw if kw in page_text_lower)
+            cashflow_score = sum(1 for kw in cashflow_kw if kw in page_text_lower)
+
+            if income_score >= 3 and "income" not in found:
+                found["income"] = page_num
+            if balance_score >= 3 and "balance" not in found:
+                found["balance"] = page_num
+            if cashflow_score >= 2 and "cashflow" not in found:
+                found["cashflow"] = page_num
+
     return found
 
 

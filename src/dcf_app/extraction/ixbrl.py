@@ -14,14 +14,18 @@ Decisiones de diseno (docs/methodology.md):
 from __future__ import annotations
 
 import logging
+import warnings
 from datetime import date
 from pathlib import Path
 from typing import Any
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Tag, XMLParsedAsHTMLWarning
 
 from dcf_app.extraction.mapping import is_company_extension
 from dcf_app.models.fact import Fact, Scale, SourceKind, SourceRef
+
+# Suprimir warning de parseo XML como HTML (no afecta la extracción)
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 logger = logging.getLogger(__name__)
 
