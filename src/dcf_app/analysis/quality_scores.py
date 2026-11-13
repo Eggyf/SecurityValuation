@@ -265,20 +265,37 @@ def beneish_m_score(cur: BeneishYear, prev: BeneishYear, threshold: float = -1.7
     def gm(y: BeneishYear) -> float:
         return (y.revenue - y.cogs) / y.revenue  # type: ignore[operator]
 
-    dsri = (cur.receivables / cur.revenue) / (prev.receivables / prev.revenue)  # type: ignore[operator]
-    gmi = gm(prev) / gm(cur)
-    aqi = (1 - (cur.current_assets + cur.ppe_net) / cur.total_assets) / (  # type: ignore[operator]
-        1 - (prev.current_assets + prev.ppe_net) / prev.total_assets  # type: ignore[operator]
-    )
-    sgi = cur.revenue / prev.revenue  # type: ignore[operator]
-    depi = (prev.depreciation / (prev.depreciation + prev.ppe_net)) / (  # type: ignore[operator]
-        cur.depreciation / (cur.depreciation + cur.ppe_net)  # type: ignore[operator]
-    )
-    sgai = (cur.sga / cur.revenue) / (prev.sga / prev.revenue)  # type: ignore[operator]
-    lvgi = ((cur.current_liabilities + cur.long_term_debt) / cur.total_assets) / (  # type: ignore[operator]
-        (prev.current_liabilities + prev.long_term_debt) / prev.total_assets  # type: ignore[operator]
-    )
-    tata = (cur.net_income_cont_ops - cur.cfo) / cur.total_assets  # type: ignore[operator]
+    try:
+        dsri = (cur.receivables / cur.revenue) / (prev.receivables / prev.revenue)  # type: ignore[operator]
+        gmi = gm(prev) / gm(cur)
+        aqi_cur = 1 - (cur.current_assets + cur.ppe_net) / cur.total_assets  # type: ignore[operator]
+        aqi_prev = 1 - (prev.current_assets + prev.ppe_net) / prev.total_assets  # type: ignore[operator]
+        if aqi_prev == 0:
+            raise ZeroDivisionError("AQI denom 0")
+        aqi = aqi_cur / aqi_prev
+        sgi = cur.revenue / prev.revenue  # type: ignore[operator]
+        depi_num = prev.depreciation / (prev.depreciation + prev.ppe_net)  # type: ignore[operator]
+        depi_den = cur.depreciation / (cur.depreciation + cur.ppe_net)  # type: ignore[operator]
+        if depi_den == 0:
+            raise ZeroDivisionError("DEPI denom 0")
+        depi = depi_num / depi_den
+        sgai_num = cur.sga / cur.revenue  # type: ignore[operator]
+        sgai_den = prev.sga / prev.revenue  # type: ignore[operator]
+        if sgai_den == 0:
+            raise ZeroDivisionError("SGAI denom 0")
+        sgai = sgai_num / sgai_den
+        lvgi_num = (cur.current_liabilities + cur.long_term_debt) / cur.total_assets  # type: ignore[operator]
+        lvgi_den = (prev.current_liabilities + prev.long_term_debt) / prev.total_assets  # type: ignore[operator]
+        if lvgi_den == 0:
+            raise ZeroDivisionError("LVGI denom 0")
+        lvgi = lvgi_num / lvgi_den
+        tata = (cur.net_income_cont_ops - cur.cfo) / cur.total_assets  # type: ignore[operator]
+    except (ZeroDivisionError, TypeError):
+        return ScoreResult(
+            value=None,
+            missing=["division por cero en calculo de Beneish"],
+            formula="M = -4.84 + 0.920*DSRI + ...",
+        )
 
     m = (
         -4.84

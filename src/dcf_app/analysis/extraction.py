@@ -20,7 +20,6 @@ def _fact_value(fact: Any) -> float | None:  # noqa: ANN401
     val = getattr(fact, "value", None)
     if val is None:
         return None
-    # Convertir a millones si tiene scale
     scale = getattr(fact, "scale", None)
     if scale is not None:
         try:
@@ -32,13 +31,47 @@ def _fact_value(fact: Any) -> float | None:  # noqa: ANN401
     return float(val)
 
 
+def _current_assets(bal: Any) -> float | None:  # noqa: ANN401
+    """Calcula activos circulantes."""
+    if bal is None:
+        return None
+    parts = [
+        _fact_value(bal.cash_and_equivalents),
+        _fact_value(bal.short_term_investments),
+        _fact_value(bal.accounts_receivable),
+        _fact_value(bal.inventory),
+        _fact_value(bal.other_current_assets),
+    ]
+    vals = [v for v in parts if v is not None]
+    if not vals:
+        return None
+    return sum(vals)
+
+
+def _current_liabilities(bal: Any) -> float | None:  # noqa: ANN401
+    """Calcula pasivos circulantes."""
+    if bal is None:
+        return None
+    parts = [
+        _fact_value(bal.accounts_payable),
+        _fact_value(bal.accrued_liabilities),
+        _fact_value(bal.short_term_debt),
+        _fact_value(bal.deferred_revenue),
+        _fact_value(bal.operating_lease_liabilities_current),
+    ]
+    vals = [v for v in parts if v is not None]
+    if not vals:
+        return None
+    return sum(vals)
+
+
 def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
     """Extrae YearData del ejercicio indicado (por defecto el último)."""
     if not fs.income_statements or not fs.balance_sheets:
         return YearData()
 
     inc = fs.income_statements[index]
-    # Handle negative indices properly
+
     bal_idx = index if index >= 0 else len(fs.balance_sheets) + index
     bal = fs.balance_sheets[bal_idx] if 0 <= bal_idx < len(fs.balance_sheets) else None
 
@@ -64,13 +97,18 @@ def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
             sga=_fact_value(inc.sga),
         )
 
+    ca = _current_assets(bal)
+    cl = _current_liabilities(bal)
+    ta = _fact_value(bal.total_assets)
+
     return YearData(
         net_income=_fact_value(inc.net_income),
         cfo=_fact_value(cf.cfo) if cf else None,
-        total_assets=_fact_value(bal.total_assets),
+        total_assets=ta,
+        total_equity=_fact_value(bal.total_equity),
         long_term_debt=_fact_value(bal.long_term_debt),
-        current_assets=_fact_value(bal.accounts_receivable),  # proxy
-        current_liabilities=_fact_value(bal.accounts_payable),  # proxy
+        current_assets=ca,
+        current_liabilities=cl,
         shares_outstanding=_fact_value(inc.diluted_weighted_shares),
         revenue=_fact_value(inc.revenue),
         gross_profit=_fact_value(inc.gross_profit),
@@ -82,36 +120,44 @@ def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
         accounts_payable=_fact_value(bal.accounts_payable),
         depreciation=_fact_value(inc.depreciation_amortization),
         sga=_fact_value(inc.sga),
-        retained_earnings=None,  # No disponible directamente
+        retained_earnings=_fact_value(bal.total_equity),
         total_liabilities=_fact_value(bal.total_liabilities),
-        current_liabilities_total=_fact_value(bal.accrued_liabilities),
+        current_liabilities_total=cl,
     )
 
 
 def extract_beneish_years(fs: FinancialStatements) -> tuple[BeneishYear, BeneishYear] | None:
-    """Extrae dos BeneishYear consecutivos del 10-K.
-
-    Returns None si no hay suficientes datos.
-    """
+    """Extrae dos BeneishYear consecutivos del 10-K."""
     if len(fs.income_statements) < 2 or len(fs.balance_sheets) < 2:
         return None
 
     def _extract(idx: int) -> BeneishYear:
         inc = fs.income_statements[idx]
-        bal = fs.balance_sheets[idx] if idx < len(fs.balance_sheets) else fs.balance_sheets[-1]
-        cf = fs.cash_flow_statements[idx] if idx < len(fs.cash_flow_statements) else None
+        bal_idx = idx if idx >= 0 else len(fs.balance_sheets) + idx
+        bal = fs.balance_sheets[bal_idx] if 0 <= bal_idx < len(fs.balance_sheets) else None
+        cf = None
+        if fs.cash_flow_statements:
+            cf_idx = idx if idx >= 0 else len(fs.cash_flow_statements) + idx
+            if 0 <= cf_idx < len(fs.cash_flow_statements):
+                cf = fs.cash_flow_statements[cf_idx]
+            else:
+                cf = fs.cash_flow_statements[-1]
+
+        ca = _current_assets(bal) if bal else None
+        ta = _fact_value(bal.total_assets) if bal else None
+        ppe_net = (ta - ca) if ta is not None and ca is not None else None
 
         return BeneishYear(
-            receivables=_fact_value(bal.accounts_receivable),
+            receivables=_fact_value(bal.accounts_receivable) if bal else None,
             revenue=_fact_value(inc.revenue),
             cogs=_fact_value(inc.cogs),
-            current_assets=_fact_value(bal.accounts_receivable),  # proxy
-            ppe_net=None,  # No disponible directamente
-            total_assets=_fact_value(bal.total_assets),
+            current_assets=ca,
+            ppe_net=ppe_net,
+            total_assets=ta,
             depreciation=_fact_value(inc.depreciation_amortization),
             sga=_fact_value(inc.sga),
-            current_liabilities=_fact_value(bal.accrued_liabilities),
-            long_term_debt=_fact_value(bal.long_term_debt),
+            current_liabilities=_current_liabilities(bal) if bal else None,
+            long_term_debt=_fact_value(bal.long_term_debt) if bal else None,
             net_income_cont_ops=_fact_value(inc.net_income),
             cfo=_fact_value(cf.cfo) if cf else None,
         )

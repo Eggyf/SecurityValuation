@@ -242,13 +242,29 @@ class EdgarProvider(FilingsProvider):
 
     def get_latest_filing_info(self, cik: str, form_type: str = "10-K") -> dict[str, Any] | None:
         """Devuelve info completa del último filing (accession + primaryDocument)."""
+        filings = self.get_recent_filings(cik, form_type, n=1)
+        return filings[0] if filings else None
+
+    def get_recent_filings(
+        self, cik: str, form_type: str = "10-K", n: int = 3
+    ) -> list[dict[str, Any]]:
+        """Devuelve los N filings más recientes de un tipo.
+
+        Args:
+            cik: CIK del emisor.
+            form_type: tipo de formulario (ej: "10-K").
+            n: número de filings a devolver.
+
+        Returns:
+            Lista de dicts con info de cada filing (accessionNumber, primaryDocument, etc.).
+        """
         try:
             submissions = self.get_filings_list(cik)
             if not isinstance(submissions.data, dict):
-                return None
+                return []
             filings = submissions.data.get("filings", {}).get("recent", {})
             if not filings:
-                return None
+                return []
 
             # Construir lista de filings
             keys = list(filings.keys())
@@ -260,14 +276,14 @@ class EdgarProvider(FilingsProvider):
             # Filtrar por form type
             candidates = [r for r in rows if r.get("form") == form_type]
             if not candidates:
-                return None
+                return []
 
-            # Elegir el más reciente por filingDate
-            latest = max(candidates, key=lambda r: r.get("filingDate", ""))
-            return latest
+            # Ordenar por filingDate descendente y tomar los N primeros
+            candidates.sort(key=lambda r: r.get("filingDate", ""), reverse=True)
+            return candidates[:n]
 
         except (NetworkError, InvalidTickerError):
-            return None
+            return []
 
     def download_filing(
         self,

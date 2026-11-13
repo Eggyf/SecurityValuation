@@ -17,7 +17,6 @@ from dcf_app.data_sources import (
     get_cik_from_ticker,
     get_damodaran_erp,
     get_edgar_provider,
-    get_latest_filing_info,
     get_market_data,
     get_risk_free_rate,
 )
@@ -103,66 +102,75 @@ def _extract_from_file(uploaded_file: Any) -> FinancialStatements | None:
 
 
 def _download_from_edgar(ticker: str) -> FinancialStatements | None:
-    """Descarga y extrae el último 10-K de un ticker desde EDGAR (AGENTS.md §13.4).
+    """Descarga y extrae los ultimos 10-K de un ticker desde EDGAR.
+
+    Descarga hasta 3 anios para tener datos suficientes para los scores
+    (Piotroski necesita t-2, Beneish necesita 2 ejercicios).
 
     Args:
-        ticker: símbolo de la empresa (ej: "AAPL").
+        ticker: simbodo de la empresa (ej: "AAPL").
 
     Returns:
         FinancialStatements o None si falla.
     """
     try:
         with st.spinner(f"Buscando {ticker} en EDGAR..."):
-            # Resolver ticker a CIK
             cik = get_cik_from_ticker(ticker)
             st.info(f"CIK: {cik}")
 
-            # Obtener info del último 10-K
-            filing_info = get_latest_filing_info(cik, "10-K")
-            if not filing_info:
-                st.error(f"No se encontró ningún 10-K para {ticker}")
-                return None
-
-            accession = filing_info.get("accessionNumber")
-            primary_doc = filing_info.get("primaryDocument")
-            if not isinstance(accession, str):
-                st.error("No se encontró el número de acceso del filing")
-                return None
-            st.info(f"Último 10-K: {accession}")
-
-            # Descargar el filing
             provider = get_edgar_provider()
-            filing_result = provider.download_filing(
-                accession,
-                cik=cik,
-                primary_document=(
-                    primary_doc if isinstance(primary_doc, str) else None
-                ),
-            )
-            if not isinstance(filing_result.data, bytes):
-                st.error("El descargo no devolvió bytes (formato desconocido)")
+            filings = provider.get_recent_filings(cik, "10-K", n=3)
+            if not filings:
+                st.error(f"No se encontro ningun 10-K para {ticker}")
                 return None
 
-            # Determinar sufijo del archivo temporal
-            suffix = ".html"
-            if primary_doc and primary_doc.lower().endswith(".pdf"):
-                suffix = ".pdf"
+            all_financials = []
+            for filing in filings:
+                accession = filing.get("accessionNumber")
+                primary_doc = filing.get("primaryDocument")
+                report_date = filing.get("reportDate", "")
+                if not isinstance(accession, str):
+                    st.warning("Accession number inválido, saltando...")
+                    continue
+                st.info(f"Descargando 10-K: {accession} ({report_date})")
 
-            # Guardar en temporal y extraer (mismo pipeline que archivo local)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(filing_result.data)
-                tmp_path = tmp.name
+                filing_result = provider.download_filing(
+                    accession,
+                    cik=cik,
+                    primary_document=(
+                        primary_doc if isinstance(primary_doc, str) else None
+                    ),
+                )
+                if not isinstance(filing_result.data, bytes):
+                    st.warning(f"No se pudo descargar {accession}")
+                    continue
 
-            try:
-                financials = extract_financials(tmp_path)
-                for warning in validate_extraction(financials):
-                    st.warning(warning)
-                return financials
-            finally:
-                Path(tmp_path).unlink(missing_ok=True)
+                suffix = ".html"
+                if isinstance(primary_doc, str) and primary_doc.lower().endswith(".pdf"):
+                    suffix = ".pdf"
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(filing_result.data)
+                    tmp_path = tmp.name
+
+                try:
+                    fs = extract_financials(tmp_path)
+                    all_financials.append(fs)
+                finally:
+                    Path(tmp_path).unlink(missing_ok=True)
+
+            if not all_financials:
+                st.error("No se pudo extraer ningun 10-K")
+                return None
+
+            latest = all_financials[0]
+            for warning in validate_extraction(latest):
+                st.warning(warning)
+
+            return latest
 
     except InvalidTickerError as e:
-        st.error(f"Ticker inválido: {e}")
+        st.error(f"Ticker invalido: {e}")
         return None
     except NetworkError as e:
         st.error(f"Error de red con EDGAR: {e}")
@@ -306,9 +314,48 @@ def _render_assumptions_form() -> Assumptions | None:
                 market_cap_default = md.get("market_cap")
                 shares_default_td = md.get("shares_outstanding")
                 if price_default:
-                    st.caption(f"📡 Precio precargado desde Twelve Data: ${price_default:.2f}")
+                    st.caption(f"📡 Precio precargado desde FMP: ${price_default:.2f}")
                 if market_cap_default:
                     st.caption(f"📡 Market cap precargado: {market_cap_default:,.0f} M")
+        except Exception:
+            pass
+
+    # Calcular coste de la deuda aproximado desde el 10-K
+    kd_default = None
+    financials_for_kd = st.session_state.financials
+    if (
+        financials_for_kd is not None
+        and financials_for_kd.income_statements
+        and financials_for_kd.balance_sheets
+    ):
+        try:
+            last_income = financials_for_kd.income_statements[-1]
+            interest = None
+            if (
+                last_income.interest_expense is not None
+                and last_income.interest_expense.value is not None
+            ):
+                from dcf_app.models.fact import Scale as FactScale
+                interest = last_income.interest_expense.to_scale(FactScale.MILLIONS)
+            last_balance = financials_for_kd.balance_sheets[-1]
+            st_debt = 0.0
+            lt_debt = 0.0
+            if (
+                last_balance.short_term_debt is not None
+                and last_balance.short_term_debt.value is not None
+            ):
+                st_debt = last_balance.short_term_debt.to_scale(FactScale.MILLIONS) or 0.0
+            if (
+                last_balance.long_term_debt is not None
+                and last_balance.long_term_debt.value is not None
+            ):
+                lt_debt = last_balance.long_term_debt.to_scale(FactScale.MILLIONS) or 0.0
+            total_debt = st_debt + lt_debt
+            if interest is not None and total_debt > 0:
+                kd_default = (interest / total_debt) * 100.0
+                if kd_default > 15:
+                    kd_default = 15.0  # Cap at 15%
+                st.caption(f"📡 Kd aproximado (intereses/deuda del 10-K): {kd_default:.2f} %")
         except Exception:
             pass
 
@@ -397,9 +444,9 @@ def _render_assumptions_form() -> Assumptions | None:
                 "Coste de la deuda Kd (%)",
                 0.0,
                 15.0,
-                None,
+                kd_default,
                 0.5,
-                help="Aproximación: intereses / deuda media (notas del 10-K).",
+                help="Aproximación: intereses / deuda total (del 10-K).",
             )
         )
 
@@ -609,6 +656,31 @@ def main() -> None:
     """Punto de entrada de la aplicación Streamlit."""
     st.title("📊 Valoración DCF desde Form 10-K")
     st.markdown(DISCLAIMER)
+
+    # Guía rápida para usuarios no financieros
+    with st.expander("📖 ¿Cómo usar esta app? (guía rápida)", expanded=False):
+        st.markdown(
+            """
+            **Esta app valora empresas usando el método DCF (Flujo de Caja Descontado).**
+
+            **Pasos:**
+            1. **Subir 10-K** (pestaña 1): Sube el PDF/HTML, o descárgalo desde EDGAR.
+            2. **Revisar datos** (pestaña 2): Verifica los datos financieros extraídos.
+            3. **Supuestos** (pestaña 3): Ajusta crecimiento, márgenes, WACC, etc.
+            4. **Resultados** (pestaña 4): Ve el valor de la empresa y exporta a Excel.
+            5. **Reverse DCF** (pestaña 5): Descubre qué descuenta el mercado.
+            6. **Calidad** (pestaña 6): Scores de salud financiera (Piotroski, Altman, Beneish).
+
+            **¿No sabes qué poner en los supuestos?**
+            - **Rf**: Ya se precarga desde FRED (bono del Tesoro USA a 10 años).
+            - **Beta**: Búscala en Yahoo Finance → "Statistics" → "Beta".
+            - **ERP**: Ya se precarga desde Damodaran (~4%). Puedes usar 5% como referencia.
+            - **Kd**: Intereses pagados / Deuda total (del 10-K).
+            - **Market Cap, Precio, Acciones**: Se precargan desde FMP si introduces el ticker.
+
+            **⚠️ Esto no es asesoramiento financiero.** Los resultados dependen de tus supuestos.
+            """
+        )
 
     tabs = st.tabs(
         [
@@ -927,100 +999,124 @@ def main() -> None:
 
             # Piotroski (necesita 2 ejercicios)
             if prev is not None:
-                prev_prev_assets = None
-                if len(financials.income_statements) >= 3:
-                    prev_prev = extract_year_data(financials, -3)
-                    prev_prev_assets = prev_prev.total_assets
-                piot = piotroski_f_score(cur, prev, prev_prev_assets)
-                st.subheader("Piotroski F-Score")
-                if piot.value is not None:
-                    st.metric("F-Score", f"{piot.value:.0f} / 9")
-                    with st.expander("Desglose"):
-                        for k, v in piot.components.items():
-                            st.write(f"- {k}: {'✅' if v else '❌'}")
-                else:
-                    st.warning(f"Datos insuficientes: {', '.join(piot.missing)}")
+                try:
+                    prev_prev_assets = None
+                    if len(financials.income_statements) >= 3:
+                        prev_prev = extract_year_data(financials, -3)
+                        prev_prev_assets = prev_prev.total_assets
+                    piot = piotroski_f_score(cur, prev, prev_prev_assets)
+                    st.subheader("Piotroski F-Score")
+                    if piot.value is not None:
+                        st.metric("F-Score", f"{piot.value:.0f} / 9")
+                        with st.expander("Desglose"):
+                            for k, v in piot.components.items():
+                                st.write(f"- {k}: {'✅' if v else '❌'}")
+                    else:
+                        st.warning(f"Datos insuficientes: {', '.join(piot.missing)}")
+                except Exception as e:
+                    st.warning(f"No se pudo calcular Piotroski: {e}")
 
             # Altman Z-Score
-            wc = (
-                (cur.current_assets or 0) - (cur.current_liabilities_total or 0)
-                if cur.current_assets and cur.current_liabilities_total
-                else None
-            )
-            z = altman_z_score(
-                "Zdoubleprime",
-                working_capital=wc,
-                retained_earnings=None,
-                ebit=cur.ebit,
-                equity=cur.total_liabilities,  # proxy contable
-                sales=cur.revenue,
-                total_assets=cur.total_assets,
-                total_liabilities=cur.total_liabilities,
-            )
-            st.subheader("Altman Z-Score (Z'')")
-            if z.value is not None:
-                st.metric("Z-Score", f"{z.value:.2f}")
-                st.caption(f"Zona: {z.components.get('zone', 'N/A')}")
-                with st.expander("Componentes"):
-                    for k, v in z.components.items():
-                        if k not in ("zone", "zones"):
-                            st.write(f"- {k}: {v:.4f}" if isinstance(v, float) else f"- {k}: {v}")
-            else:
-                st.warning(f"Datos insuficientes: {', '.join(z.missing)}")
+            try:
+                wc = (
+                    (cur.current_assets or 0) - (cur.current_liabilities_total or 0)
+                    if cur.current_assets and cur.current_liabilities_total
+                    else None
+                )
+                z = altman_z_score(
+                    "Zdoubleprime",
+                    working_capital=wc,
+                    retained_earnings=cur.retained_earnings,
+                    ebit=cur.ebit,
+                    equity=cur.total_equity,  # valor contable
+                    sales=cur.revenue,
+                    total_assets=cur.total_assets,
+                    total_liabilities=cur.total_liabilities,
+                )
+                st.subheader("Altman Z-Score (Z'')")
+                if z.value is not None:
+                    st.metric("Z-Score", f"{z.value:.2f}")
+                    st.caption(f"Zona: {z.components.get('zone', 'N/A')}")
+                    with st.expander("Componentes"):
+                        for k, v in z.components.items():
+                            if k not in ("zone", "zones"):
+                                if isinstance(v, float):
+                                    st.write(f"- {k}: {v:.4f}")
+                                else:
+                                    st.write(f"- {k}: {v}")
+                else:
+                    st.warning(f"Datos insuficientes: {', '.join(z.missing)}")
+            except Exception as e:
+                st.warning(f"No se pudo calcular Altman Z: {e}")
 
             # Beneish M-Score
-            beneish_years = extract_beneish_years(financials)
-            if beneish_years is not None:
-                m = beneish_m_score(beneish_years[1], beneish_years[0])
-                st.subheader("Beneish M-Score")
-                if m.value is not None:
-                    st.metric("M-Score", f"{m.value:.2f}")
-                    st.caption(m.note)
-                    with st.expander("Componentes"):
-                        for k, v in m.components.items():
-                            st.write(f"- {k}: {v:.4f}")
+            try:
+                beneish_years = extract_beneish_years(financials)
+                if beneish_years is not None:
+                    m = beneish_m_score(beneish_years[1], beneish_years[0])
+                    st.subheader("Beneish M-Score")
+                    if m.value is not None:
+                        st.metric("M-Score", f"{m.value:.2f}")
+                        st.caption(m.note)
+                        with st.expander("Componentes"):
+                            for k, v in m.components.items():
+                                st.write(f"- {k}: {v:.4f}")
+                    else:
+                        st.warning(f"Datos insuficientes: {', '.join(m.missing)}")
                 else:
-                    st.warning(f"Datos insuficientes: {', '.join(m.missing)}")
-            else:
-                st.info("Se necesitan 2 ejercicios para Beneish M-Score.")
+                    st.info("Se necesitan 2 ejercicios para Beneish M-Score.")
+            except Exception as e:
+                st.warning(f"No se pudo calcular Beneish M: {e}")
 
             # Calidad de beneficios
-            if cur.net_income is not None and cur.cfo is not None and cur.total_assets is not None:
-                eq = earnings_quality(cur.net_income, cur.cfo, cur.total_assets)
-                st.subheader("Calidad de beneficios")
-                if eq.value is not None:
-                    st.metric("CFO / Beneficio neto", f"{eq.value:.2f}")
-                    accruals = eq.components.get("accruals_ratio")
-                    if accruals is not None:
-                        st.caption(f"Ratio de devengos: {accruals:.4f}")
+            try:
+                if (
+                    cur.net_income is not None
+                    and cur.cfo is not None
+                    and cur.total_assets is not None
+                ):
+                    eq = earnings_quality(cur.net_income, cur.cfo, cur.total_assets)
+                    st.subheader("Calidad de beneficios")
+                    if eq.value is not None:
+                        st.metric("CFO / Beneficio neto", f"{eq.value:.2f}")
+                        accruals = eq.components.get("accruals_ratio")
+                        if accruals is not None:
+                            st.caption(f"Ratio de devengos: {accruals:.4f}")
+                    else:
+                        st.warning(f"Datos insuficientes: {', '.join(eq.missing)}")
                 else:
-                    st.warning(f"Datos insuficientes: {', '.join(eq.missing)}")
+                    st.info("Se necesitan NI, CFO y activos totales.")
+            except Exception as e:
+                st.warning(f"No se pudo calcular calidad de beneficios: {e}")
 
             # Ratios financieros
-            ratios = financial_ratios(cur)
-            st.subheader("Ratios financieros")
-            ratio_cols = st.columns(3)
-            with ratio_cols[0]:
-                if ratios.get("gross_margin") is not None:
-                    st.metric("Margen bruto", f"{ratios['gross_margin']:.1%}")
-                if ratios.get("ebit_margin") is not None:
-                    st.metric("Margen EBIT", f"{ratios['ebit_margin']:.1%}")
-                if ratios.get("roe") is not None:
-                    st.metric("ROE", f"{ratios['roe']:.1%}")
-            with ratio_cols[1]:
-                if ratios.get("dso") is not None:
-                    st.metric("DSO (días)", f"{ratios['dso']:.0f}")
-                if ratios.get("dio") is not None:
-                    st.metric("DIO (días)", f"{ratios['dio']:.0f}")
-                if ratios.get("dpo") is not None:
-                    st.metric("DPO (días)", f"{ratios['dpo']:.0f}")
-            with ratio_cols[2]:
-                if ratios.get("cash_conversion_cycle") is not None:
-                    st.metric("CCC (días)", f"{ratios['cash_conversion_cycle']:.0f}")
-                if ratios.get("interest_coverage") is not None:
-                    st.metric("Cobertura intereses", f"{ratios['interest_coverage']:.1f}x")
-                if ratios.get("fcf_conversion") is not None:
-                    st.metric("Conversión FCF", f"{ratios['fcf_conversion']:.2f}")
+            try:
+                ratios = financial_ratios(cur)
+                st.subheader("Ratios financieros")
+                ratio_cols = st.columns(3)
+                with ratio_cols[0]:
+                    if ratios.get("gross_margin") is not None:
+                        st.metric("Margen bruto", f"{ratios['gross_margin']:.1%}")
+                    if ratios.get("ebit_margin") is not None:
+                        st.metric("Margen EBIT", f"{ratios['ebit_margin']:.1%}")
+                    if ratios.get("roe") is not None:
+                        st.metric("ROE", f"{ratios['roe']:.1%}")
+                with ratio_cols[1]:
+                    if ratios.get("dso") is not None:
+                        st.metric("DSO (días)", f"{ratios['dso']:.0f}")
+                    if ratios.get("dio") is not None:
+                        st.metric("DIO (días)", f"{ratios['dio']:.0f}")
+                    if ratios.get("dpo") is not None:
+                        st.metric("DPO (días)", f"{ratios['dpo']:.0f}")
+                with ratio_cols[2]:
+                    if ratios.get("cash_conversion_cycle") is not None:
+                        st.metric("CCC (días)", f"{ratios['cash_conversion_cycle']:.0f}")
+                    if ratios.get("interest_coverage") is not None:
+                        st.metric("Cobertura intereses", f"{ratios['interest_coverage']:.1f}x")
+                    if ratios.get("fcf_conversion") is not None:
+                        st.metric("Conversión FCF", f"{ratios['fcf_conversion']:.2f}")
+            except Exception as e:
+                st.warning(f"No se pudieron calcular los ratios: {e}")
 
     # Disclaimer final
     st.markdown("---")
