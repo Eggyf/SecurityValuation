@@ -18,7 +18,7 @@ from dcf_app.data_sources import (
     get_damodaran_erp,
     get_edgar_provider,
     get_market_data,
-    get_risk_free_rate,
+    get_risk_free_rate_full,
 )
 from dcf_app.data_sources.base import InvalidTickerError, NetworkError
 from dcf_app.export import export_to_excel_bytes
@@ -291,10 +291,13 @@ def _render_assumptions_form() -> Assumptions | None:
     # Intentar precargar datos de mercado (FRED + Twelve Data + Damodaran)
     rf_default = None
     try:
-        rf_val = get_risk_free_rate()
-        if rf_val is not None:
-            rf_default = rf_val
-            st.caption(f"📡 Rf precargada desde FRED (DGS10): {rf_val:.2f} %")
+        rf_full = get_risk_free_rate_full()
+        if rf_full is not None:
+            rf_val = rf_full.get("value")
+            rf_date = rf_full.get("date", "")
+            if rf_val is not None:
+                rf_default = rf_val
+                st.caption(f"📡 Rf precargada desde FRED (DGS10, {rf_date}): {rf_val:.2f} %")
     except Exception:
         pass
 

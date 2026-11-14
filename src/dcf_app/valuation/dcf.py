@@ -85,6 +85,9 @@ def _compute_historical_metrics(financials: FinancialStatements) -> dict[str, An
     ebit = _extract_fact_value(income.ebit)
     ebit_margin = ebit / revenue if revenue != 0 else 0.0
 
+    # Interest expense
+    interest_expense = _extract_fact_value(income.interest_expense)
+
     # D&A % (de cash flow o P&L)
     da_val = _extract_fact_value(cashflow.depreciation_amortization)
     if da_val == 0.0:
@@ -131,6 +134,7 @@ def _compute_historical_metrics(financials: FinancialStatements) -> dict[str, An
 
     return {
         "revenue": revenue,
+        "interest_expense": interest_expense,
         "ebit_margin": ebit_margin,
         "da_pct": da_pct,
         "capex_pct": capex_pct,
@@ -171,7 +175,7 @@ def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
     kd = assumptions.cost_of_debt
     if kd is None:
         # Intentar calcular a partir de intereses/deuda
-        interest = 0.0  # No tenemos intereses en las métricas actuales
+        interest = abs(metrics.get("interest_expense", 0.0))
         debt = metrics["debt"]
         if debt > 0 and interest > 0:
             kd = interest / debt

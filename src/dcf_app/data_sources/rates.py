@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -73,7 +74,7 @@ class FredRatesProvider(RatesProvider):
 
         url = (
             f"{FRED_BASE_URL}?series_id={series}&api_key={self.api_key}"
-            f"&file_type=json&sort_order=desc&limit=1"
+            f"&file_type=json&sort_order=desc&limit=10"
         )
         try:
             response = httpx.get(url, timeout=30.0)
@@ -86,11 +87,17 @@ class FredRatesProvider(RatesProvider):
         if not observations:
             raise NetworkError("FRED", f"No hay observaciones para {series}")
 
-        obs = observations[0]
-        value_str = obs.get("value", ".")
-        if value_str == ".":
-            raise NetworkError("FRED", f"Valor no disponible para {series}")
+        # Buscar la primera observación válida (saltar '.')
+        obs = None
+        for o in observations:
+            if o.get("value", ".") != ".":
+                obs = o
+                break
 
+        if obs is None:
+            raise NetworkError("FRED", f"No hay valores válidos para {series}")
+
+        value_str = obs.get("value", ".")
         try:
             value = float(value_str)
         except ValueError as e:
@@ -121,11 +128,19 @@ class FredRatesProvider(RatesProvider):
 
 def get_risk_free_rate() -> float | None:
     """Devuelve la tasa libre de riesgo (DGS10) o None si no está disponible."""
+    result = get_risk_free_rate_full()
+    if result is not None:
+        return result.get("value")
+    return None
+
+
+def get_risk_free_rate_full() -> dict[str, Any] | None:
+    """Devuelve la tasa libre de riesgo con fecha y fuente."""
     try:
         provider = FredRatesProvider()
         result = provider.get_risk_free_rate()
         if isinstance(result.data, dict):
-            return result.data.get("value")
+            return result.data
     except (DataSourceConfigError, NetworkError):
         pass
     return None

@@ -323,6 +323,35 @@ def has_errors(results: list[ValidationResult]) -> bool:
     return any(r.status == ValidationStatus.ERROR for r in results)
 
 
+def validate_percentage_range(
+    name: str, value: float | None, min_val: float, max_val: float, unit: str = "%"
+) -> ValidationResult:
+    """Valida que un porcentaje esté en un rango plausible.
+
+    Args:
+        name: nombre del parámetro.
+        value: valor a validar (como fracción, ej: 0.04 = 4%).
+        min_val: mínimo plausible (como fracción).
+        max_val: máximo plausible (como fracción).
+        unit: unidad para el mensaje.
+
+    Returns:
+        ValidationResult con OK si está en rango, WARNING si está fuera.
+    """
+    if value is None:
+        return ValidationResult(name, ValidationStatus.WARNING, f"{name}: no proporcionado.")
+    if min_val <= value <= max_val:
+        return ValidationResult(
+            name, ValidationStatus.OK, f"{name}: {value * 100:.2f} {unit} (en rango)."
+        )
+    return ValidationResult(
+        name,
+        ValidationStatus.WARNING,
+        f"{name}: {value * 100:.2f} {unit} fuera del rango plausible "
+        f"({min_val * 100:.1f}-{max_val * 100:.1f} {unit}).",
+    )
+
+
 def can_run_valuation(results: list[ValidationResult]) -> bool:
     """Indica si se puede ejecutar la valoración.
 

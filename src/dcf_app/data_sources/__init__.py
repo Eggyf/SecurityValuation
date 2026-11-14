@@ -22,7 +22,11 @@ from dcf_app.data_sources.edgar import (
     get_latest_filing_info,
 )
 from dcf_app.data_sources.market import FmpMarketProvider, get_market_data
-from dcf_app.data_sources.rates import FredRatesProvider, get_risk_free_rate
+from dcf_app.data_sources.rates import (
+    FredRatesProvider,
+    get_risk_free_rate,
+    get_risk_free_rate_full,
+)
 
 __all__ = [
     "CacheManager",
@@ -49,4 +53,5 @@ __all__ = [
     "get_latest_filing_info",
     "get_market_data",
     "get_risk_free_rate",
+    "get_risk_free_rate_full",
 ]

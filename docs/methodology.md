@@ -51,6 +51,17 @@ Cada entrada indica la decisión, su justificación y su estado.
 | Bounds del formulario | g limitado a [2,0 %, 2,5 %] (§7.4), tasa impositiva a [15 %, 30 %] (§7.1), margen EBIT a [0 %, 90 %]; el slider de horizonte alimenta la proyección (antes su valor se descartaba y era decorativo) | Firmada (2026-11-11) |
 | EBIT negativo | Si el margen EBIT del último ejercicio es negativo, la UI avisa de que la v1 no cubre ese caso (§15) en vez de pre-rellenar el margen objetivo | Firmada (2026-11-11) |
 
+## Leases operativos (H19)
+
+**Decisión:** Los leases operativos se tratan como deuda financiera en el puente EV→equity y en los pesos del WACC. El EBIT se usa antes del coste de lease implícito (es decir, no se resta el coste de lease del EBIT). Esta es la opción más común en la práctica y la más conservadora.
+
+**Implicaciones:**
+- **EBIT:** Se usa el Operating Income tal como se reporta (antes de lease expense implícito).
+- **WACC:** Los leases operativos se suman a la deuda financiera para los pesos (D/(D+E)).
+- **Puente EV→equity:** Los leases operativos se restan como partida separada.
+
+**Alternativa (no usada):** Restar el coste de lease del EBIT y no tratar los leases como deuda. Esto daría un EV menor y un precio por acción menor.
+
 ## Pendientes de decidir
 
 Se resolverán al implementar cada módulo, no antes:
