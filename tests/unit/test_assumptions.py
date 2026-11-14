@@ -103,7 +103,7 @@ def test_dcf_result_minimal_valid() -> None:
         enterprise_value=150.0,
         equity_value=140.0,
         price_per_share=14.0,
-        tv_percentage=66.67,
+        tv_percentage=0.6667,
     )
     assert result.assumptions is assumptions
     assert result.forecast_years == [2025, 2026, 2027]
@@ -133,7 +133,7 @@ def test_dcf_result_unreasonable() -> None:
         enterprise_value=210.0,
         equity_value=200.0,
         price_per_share=20.0,
-        tv_percentage=95.24,  # > 75%
+        tv_percentage=0.9524,  # > 75%
     )
     assert result.is_reasonable is False
 
@@ -159,7 +159,7 @@ def test_dcf_result_negative_prices() -> None:
         enterprise_value=110.0,
         equity_value=100.0,
         price_per_share=-10.0,  # precio negativo
-        tv_percentage=90.91,
+        tv_percentage=0.9091,
     )
     assert result.is_reasonable is False
 

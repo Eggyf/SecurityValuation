@@ -30,6 +30,7 @@ class YearData:
     cfo: float | None = None
     total_assets: float | None = None
     total_equity: float | None = None
+    cash: float | None = None
     long_term_debt: float | None = None
     current_assets: float | None = None
     current_liabilities: float | None = None
@@ -462,8 +463,10 @@ def financial_ratios(data: YearData, prev_data: YearData | None = None) -> dict[
     if ebit is not None and data.depreciation is not None:
         ebitda = ebit + data.depreciation
         if ebitda != 0:
-            # Aproximación: usar long_term_debt como deuda total
-            net_debt = (data.long_term_debt or 0) - (data.current_assets or 0)  # simplificado
+            # Deuda neta = deuda total - caja
+            total_debt = (data.long_term_debt or 0) + (data.current_liabilities or 0)
+            cash = data.cash or 0
+            net_debt = total_debt - cash
             r["net_debt_to_ebitda"] = net_debt / ebitda
         else:
             r["net_debt_to_ebitda"] = None

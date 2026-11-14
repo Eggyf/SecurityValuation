@@ -83,6 +83,7 @@ class CashFlowStatement(BaseModel):
     period_start: date
     period_end: date
 
+    net_income: Fact | None = None  # beneficio neto (primera linea del EFE)
     cfo: Fact | None = None  # caja de operaciones
     capex: Fact | None = None  # con el signo reportado (típicamente negativo)
     depreciation_amortization: Fact | None = None  # adición sin efecto de caja

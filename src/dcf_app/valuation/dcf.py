@@ -376,6 +376,7 @@ def run_dcf(
         terminal_multiple=assumptions.exit_multiple_ebitda,
         wacc_values=wacc_range,
         growth_values=growth_range,
+        growth_initial_base=growth_initial,
     )
 
     margin_range = [margin_target - 0.05, margin_target, margin_target + 0.05]

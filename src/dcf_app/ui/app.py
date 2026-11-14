@@ -26,7 +26,13 @@ from dcf_app.extraction import extract_financials, validate_extraction
 from dcf_app.models.assumptions import Assumptions, DiscountConvention, TerminalValueMethod
 from dcf_app.models.fact import Fact, Scale
 from dcf_app.models.financials import FinancialStatements
-from dcf_app.validation import ValidationResult, ValidationStatus, has_errors, validate_all
+from dcf_app.validation import (
+    ValidationResult,
+    ValidationStatus,
+    can_run_valuation,
+    has_errors,
+    validate_all,
+)
 from dcf_app.valuation import run_dcf
 
 # ---------------------------------------------------------------------------
@@ -850,6 +856,11 @@ def main() -> None:
         assumptions = _render_assumptions_form()
         if assumptions is not None:
             st.session_state.assumptions = assumptions
+            vr = st.session_state.get("validation_results", [])
+            if not can_run_valuation(vr):
+                st.error("Hay errores de validación. Corrígelos antes de valorar.")
+                st.stop()
+
             if st.button("Ejecutar DCF"):
                 if st.session_state.financials is None:
                     st.error("Primero sube un archivo 10-K en la pestaña 1.")
@@ -1004,6 +1015,9 @@ def main() -> None:
                     if len(financials.income_statements) >= 3:
                         prev_prev = extract_year_data(financials, -3)
                         prev_prev_assets = prev_prev.total_assets
+                    # Si no hay t-2, usar t-1 como proxy
+                    if prev_prev_assets is None:
+                        prev_prev_assets = prev.total_assets
                     piot = piotroski_f_score(cur, prev, prev_prev_assets)
                     st.subheader("Piotroski F-Score")
                     if piot.value is not None:

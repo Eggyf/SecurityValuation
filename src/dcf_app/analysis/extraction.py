@@ -65,6 +65,16 @@ def _current_liabilities(bal: Any) -> float | None:  # noqa: ANN401
     return sum(vals)
 
 
+def _get_depreciation(inc: Any, cf: Any) -> float | None:  # noqa: ANN401
+    """Obtiene D&A del income statement o del cash flow."""
+    val = _fact_value(inc.depreciation_amortization)
+    if val is not None:
+        return val
+    if cf is not None:
+        return _fact_value(cf.depreciation_amortization)
+    return None
+
+
 def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
     """Extrae YearData del ejercicio indicado (por defecto el último)."""
     if not fs.income_statements or not fs.balance_sheets:
@@ -93,7 +103,7 @@ def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
             cogs=_fact_value(inc.cogs),
             ebit=_fact_value(inc.ebit),
             interest_expense=_fact_value(inc.interest_expense),
-            depreciation=_fact_value(inc.depreciation_amortization),
+            depreciation=_get_depreciation(inc, cf),
             sga=_fact_value(inc.sga),
         )
 
@@ -106,6 +116,7 @@ def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
         cfo=_fact_value(cf.cfo) if cf else None,
         total_assets=ta,
         total_equity=_fact_value(bal.total_equity),
+        cash=_fact_value(bal.cash_and_equivalents),
         long_term_debt=_fact_value(bal.long_term_debt),
         current_assets=ca,
         current_liabilities=cl,
@@ -118,7 +129,7 @@ def extract_year_data(fs: FinancialStatements, index: int = -1) -> YearData:
         accounts_receivable=_fact_value(bal.accounts_receivable),
         inventory=_fact_value(bal.inventory),
         accounts_payable=_fact_value(bal.accounts_payable),
-        depreciation=_fact_value(inc.depreciation_amortization),
+        depreciation=_get_depreciation(inc, cf),
         sga=_fact_value(inc.sga),
         retained_earnings=_fact_value(bal.total_equity),
         total_liabilities=_fact_value(bal.total_liabilities),
@@ -154,7 +165,7 @@ def extract_beneish_years(fs: FinancialStatements) -> tuple[BeneishYear, Beneish
             current_assets=ca,
             ppe_net=ppe_net,
             total_assets=ta,
-            depreciation=_fact_value(inc.depreciation_amortization),
+            depreciation=_get_depreciation(inc, cf),
             sga=_fact_value(inc.sga),
             current_liabilities=_current_liabilities(bal) if bal else None,
             long_term_debt=_fact_value(bal.long_term_debt) if bal else None,

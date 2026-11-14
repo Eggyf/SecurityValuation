@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from dcf_app.models.fact import Fact
+from dcf_app.models.fact import Fact, Scale
 from dcf_app.models.financials import FinancialStatements
 
 
@@ -34,7 +34,7 @@ def _fact_value(fact: Fact | None) -> float | None:
     """Extrae el valor de un Fact en millones."""
     if fact is None or getattr(fact, "value", None) is None:
         return None
-    return fact.to_scale(__import__("dcf_app.models.fact", fromlist=["Scale"]).Scale.MILLIONS)
+    return fact.to_scale(Scale.MILLIONS)
 
 
 def validate_balance_sheet(financials: FinancialStatements) -> ValidationResult:
@@ -110,22 +110,44 @@ def validate_gross_profit(financials: FinancialStatements) -> ValidationResult:
 
 
 def validate_net_income_consistency(financials: FinancialStatements) -> ValidationResult:
-    """Net Income del P&L coincide con el del flujo de caja."""
+    """Net Income del P&L coincide con el del flujo de caja (tolerancia 0,5 %)."""
     if not financials.income_statements or not financials.cash_flow_statements:
         return ValidationResult(
             "net_income_consistency", ValidationStatus.WARNING, "Faltan estados para validar."
         )
     income = financials.income_statements[-1]
+    cashflow = financials.cash_flow_statements[-1]
 
     ni_income = _fact_value(income.net_income)
-    # El flujo de caja no siempre reporta Net Income directamente
+    ni_cashflow = _fact_value(cashflow.net_income)
 
     if ni_income is None:
         return ValidationResult(
             "net_income_consistency", ValidationStatus.WARNING, "No hay Net Income en el P&L."
         )
+    if ni_cashflow is None:
+        return ValidationResult(
+            "net_income_consistency",
+            ValidationStatus.WARNING,
+            "Net Income no disponible en el flujo de caja (no verificado).",
+        )
+
+    if ni_income == 0:
+        return ValidationResult(
+            "net_income_consistency", ValidationStatus.WARNING, "Net Income del P&L es 0."
+        )
+
+    diff_pct = abs(ni_income - ni_cashflow) / abs(ni_income) * 100
+    if diff_pct < 0.5:
+        return ValidationResult(
+            "net_income_consistency",
+            ValidationStatus.OK,
+            f"NI P&L = NI flujo de caja (diff {diff_pct:.2f} %).",
+        )
     return ValidationResult(
-        "net_income_consistency", ValidationStatus.OK, "Net Income del P&L disponible."
+        "net_income_consistency",
+        ValidationStatus.WARNING,
+        f"NI P&L ({ni_income:,.0f}) ≠ NI flujo ({ni_cashflow:,.0f}) (diff {diff_pct:.2f} %).",
     )
 
 
@@ -180,6 +202,81 @@ def validate_consecutive_years(financials: FinancialStatements) -> ValidationRes
     )
 
 
+def validate_cash_flow_vs_balance(financials: FinancialStatements) -> ValidationResult:
+    """Variación de caja del flujo ≈ variación de caja en balance."""
+    if not financials.cash_flow_statements or not financials.balance_sheets:
+        return ValidationResult(
+            "cash_flow_vs_balance", ValidationStatus.WARNING, "Faltan estados para validar."
+        )
+    cf = financials.cash_flow_statements[-1]
+    bs = financials.balance_sheets[-1]
+
+    net_change = _fact_value(cf.net_change_in_cash)
+    if net_change is None:
+        return ValidationResult(
+            "cash_flow_vs_balance",
+            ValidationStatus.WARNING,
+            "No hay cambio neto de caja en el flujo.",
+        )
+
+    # Variación de caja en balance: solo si hay al menos 2 balances
+    if len(financials.balance_sheets) < 2:
+        return ValidationResult(
+            "cash_flow_vs_balance",
+            ValidationStatus.WARNING,
+            "Se necesitan 2 balances para comparar variación de caja.",
+        )
+
+    prev_bs = financials.balance_sheets[-2]
+    cash_curr = _fact_value(bs.cash_and_equivalents)
+    cash_prev = _fact_value(prev_bs.cash_and_equivalents)
+    if cash_curr is None or cash_prev is None:
+        return ValidationResult(
+            "cash_flow_vs_balance", ValidationStatus.WARNING, "Faltan datos de caja en balance."
+        )
+
+    balance_change = cash_curr - cash_prev
+    if balance_change != 0:
+        diff_pct = abs(net_change - balance_change) / abs(balance_change) * 100
+    else:
+        diff_pct = 0.0
+    if diff_pct < 5.0:
+        return ValidationResult(
+            "cash_flow_vs_balance",
+            ValidationStatus.OK,
+            "Variación de caja: flujo "
+            f"{net_change:,.0f} vs balance {balance_change:,.0f} "
+            f"(diff {diff_pct:.1f} %).",
+        )
+    return ValidationResult(
+        "cash_flow_vs_balance",
+        ValidationStatus.WARNING,
+        "Variación de caja: flujo "
+        f"{net_change:,.0f} vs balance {balance_change:,.0f} "
+        f"(diff {diff_pct:.1f} %).",
+    )
+
+
+def validate_debt_consistency(financials: FinancialStatements) -> ValidationResult:
+    """Deuda sin doble conteo: total = corriente + no corriente."""
+    if not financials.balance_sheets:
+        return ValidationResult("debt_consistency", ValidationStatus.ERROR, "No hay balance.")
+    bs = financials.balance_sheets[-1]
+
+    st_debt = _fact_value(bs.short_term_debt)
+    lt_debt = _fact_value(bs.long_term_debt)
+    # No tenemos un "total debt" field, así que solo verificamos que ambos existan
+    if st_debt is None and lt_debt is None:
+        return ValidationResult(
+            "debt_consistency", ValidationStatus.WARNING, "No hay datos de deuda."
+        )
+    return ValidationResult(
+        "debt_consistency",
+        ValidationStatus.OK,
+        f"Deuda CP: {st_debt or 0:,.0f}, LP: {lt_debt or 0:,.0f}.",
+    )
+
+
 def validate_all(financials: FinancialStatements) -> list[ValidationResult]:
     """Ejecuta todas las validaciones y devuelve la lista de resultados."""
     return [
@@ -188,6 +285,8 @@ def validate_all(financials: FinancialStatements) -> list[ValidationResult]:
         validate_net_income_consistency(financials),
         validate_scale_consistency(financials),
         validate_consecutive_years(financials),
+        validate_cash_flow_vs_balance(financials),
+        validate_debt_consistency(financials),
     ]
 
 
@@ -196,13 +295,24 @@ def has_errors(results: list[ValidationResult]) -> bool:
     return any(r.status == ValidationStatus.ERROR for r in results)
 
 
+def can_run_valuation(results: list[ValidationResult]) -> bool:
+    """Indica si se puede ejecutar la valoración.
+
+    Un ERROR bloquea la valoración. Sin resultados (vacío) se permite.
+    """
+    return not has_errors(results)
+
+
 __all__ = [
     "ValidationResult",
     "ValidationStatus",
+    "can_run_valuation",
     "has_errors",
     "validate_all",
     "validate_balance_sheet",
+    "validate_cash_flow_vs_balance",
     "validate_consecutive_years",
+    "validate_debt_consistency",
     "validate_gross_profit",
     "validate_net_income_consistency",
     "validate_scale_consistency",

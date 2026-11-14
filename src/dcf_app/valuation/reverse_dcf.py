@@ -167,15 +167,17 @@ def reverse_dcf_growth(
         # Sin cambio de signo
         if f_low > 0:
             msg = (
-                f"Sin solución en el rango: incluso con crecimiento del "
-                f"{growth_range[0]:.1%} el modelo da ${f_low + market_price:.2f}, "
-                f"superior al precio de mercado (${market_price:.2f})."
+                f"El mercado descuenta menos del {growth_range[0]:.1%} de crecimiento: "
+                f"con crecimiento del {growth_range[0]:.1%} el modelo da "
+                f"${f_low + market_price:.2f}, superior al precio de mercado "
+                f"(${market_price:.2f})."
             )
         else:
             msg = (
-                f"Sin solución en el rango: incluso con crecimiento del "
-                f"{growth_range[1]:.1%} el modelo da ${f_high + market_price:.2f}, "
-                f"inferior al precio de mercado (${market_price:.2f})."
+                f"El mercado descuenta más del {growth_range[1]:.1%} de crecimiento: "
+                f"con crecimiento del {growth_range[1]:.1%} el modelo da "
+                f"${f_high + market_price:.2f}, inferior al precio de mercado "
+                f"(${market_price:.2f})."
             )
         return ReverseDCFResult(
             parameter="growth",
@@ -302,15 +304,17 @@ def reverse_dcf_margin(
     if f_low * f_high > 0:
         if f_low > 0:
             msg = (
-                f"Sin solución en el rango: incluso con margen del "
-                f"{margin_range[0]:.1%} el modelo da ${f_low + market_price:.2f}, "
-                f"superior al precio de mercado (${market_price:.2f})."
+                f"El mercado descuenta un margen inferior al {margin_range[0]:.1%}: "
+                f"con margen del {margin_range[0]:.1%} el modelo da "
+                f"${f_low + market_price:.2f}, superior al precio de mercado "
+                f"(${market_price:.2f})."
             )
         else:
             msg = (
-                f"Sin solución en el rango: incluso con margen del "
-                f"{margin_range[1]:.1%} el modelo da ${f_high + market_price:.2f}, "
-                f"inferior al precio de mercado (${market_price:.2f})."
+                f"El mercado descuenta un margen superior al {margin_range[1]:.1%}: "
+                f"con margen del {margin_range[1]:.1%} el modelo da "
+                f"${f_high + market_price:.2f}, inferior al precio de mercado "
+                f"(${market_price:.2f})."
             )
         return ReverseDCFResult(
             parameter="margin",

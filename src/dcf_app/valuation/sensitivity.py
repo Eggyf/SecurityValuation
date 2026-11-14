@@ -189,6 +189,7 @@ def sensitivity_wacc_growth(
     # Rangos de sensibilidad
     wacc_values: list[float],
     growth_values: list[float],
+    growth_initial_base: float | None = None,
 ) -> dict[tuple[float, float], float]:
     """Sensibilidad WACC x g → precio por acción (AGENTS.md §7.7).
 
@@ -202,7 +203,11 @@ def sensitivity_wacc_growth(
     def price_fn(w: float, g_val: float) -> float:
         return _dcf_price(
             initial_revenue=initial_revenue,
-            growth_initial=growth_values[0] if growth_values else 0.05,
+            growth_initial=(
+                growth_initial_base
+                if growth_initial_base is not None
+                else (growth_values[0] if growth_values else 0.05)
+            ),
             growth_terminal=g_val,
             margin_current=margin_current,
             margin_target=margin_target,

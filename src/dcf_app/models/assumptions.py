@@ -173,7 +173,7 @@ class DCFResult(BaseModel):
     def is_reasonable(self) -> bool:
         """Indica si el resultado es razonable (TV < 75% EV, etc.)."""
         return (
-            self.tv_percentage < 75.0  # TV < 75% del EV (AGENTS.md §7.4)
+            self.tv_percentage < 0.75  # TV < 75% del EV (AGENTS.md §7.4)
             and self.price_per_share > 0  # precio positivo
             and self.enterprise_value > 0  # EV positivo
         )

@@ -171,6 +171,7 @@ _BALANCE_LABELS: list[tuple[re.Pattern[str], str]] = [
 ]
 
 _CASHFLOW_LABELS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"^net income$", re.I), "net_income"),
     (re.compile(r"^net cash from operations\b", re.I), "cfo"),
     (re.compile(r"^net cash provided by operating activities\b", re.I), "cfo"),
     (re.compile(r"^net cash used in operating activities\b", re.I), "cfo"),
@@ -240,18 +241,31 @@ def _month_number(name: str) -> int | None:
 def _find_statement_pages(doc: Any) -> dict[str, int]:  # noqa: ANN401 (borde del parseo)
     """Localiza la primera pagina de cada estado financiero."""
     found: dict[str, int] = {}
+    # Primera pasada: buscar por título exacto (más fiable)
     for page_num, page in enumerate(doc):
-        text = page.get_text()
-        lines = [_normalize_line(t) for t in text.splitlines() if t.strip()]
-        # El titulo aparece al principio de la pagina (antes de las cifras).
+        lines = [_normalize_line(t) for t in page.get_text().splitlines() if t.strip()]
         for line in lines[:25]:
             for statement_type, pattern in _STATEMENT_TITLES.items():
                 if statement_type not in found and pattern.fullmatch(line):
                     found[statement_type] = page_num
                     break
-        # Fallback: buscar por palabras clave si no se encontró por título exacto
-        if len(found) < 3:
+
+    # Segunda pasada: fallback por palabras clave solo si no se encontró
+    if len(found) < 3:
+        for page_num, page in enumerate(doc):
+            text = page.get_text()
             page_text_lower = text.lower()
+            lines = [_normalize_line(t) for t in text.splitlines() if t.strip()]
+
+            # Solo considerar páginas que no son MD&A (buscar "Item 8" o "Financial Statements")
+            is_financial_page = any(
+                "item 8" in line.lower() or "financial statements" in line.lower()
+                for line in lines[:10]
+            )
+
+            if not is_financial_page:
+                continue
+
             income_kw = ["revenue", "net income", "operating income", "cost of"]
             balance_kw = ["total assets", "total liabilities", "stockholders", "shareholders"]
             cashflow_kw = ["cash flow", "operating activities", "investing activities"]

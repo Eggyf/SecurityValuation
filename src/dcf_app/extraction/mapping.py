@@ -123,6 +123,9 @@ BALANCE_SHEET_MAP: Final[dict[str, str]] = {
 
 # Flujo de caja
 CASH_FLOW_MAP: Final[dict[str, str]] = {
+    # Net Income (primera línea del EFE)
+    "netincomeloss": "net_income",
+    "profitloss": "net_income",
     # CFO
     "netcashprovidedbyusedinoperatingactivities": "cfo",
     "cashflowfromoperatingactivities": "cfo",
