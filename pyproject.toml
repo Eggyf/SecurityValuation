@@ -73,7 +73,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "src/dcf_app/ui/**" = ["ANN", "T20"]
-"src/dcf_app/export/**" = ["ANN"]
 "tests/**" = ["ANN", "D", "RUF"]
 
 [tool.ruff.lint.pydocstyle]
@@ -96,9 +95,7 @@ plugins = ["pydantic.mypy"]
 module = ["plotly.*", "streamlit.*", "fitz.*", "openpyxl.*", "scipy.*", "pandas.*"]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = ["dcf_app.export.*"]
-ignore_errors = true
+
 
 [tool.pytest.ini_options]
 minversion = "8.0"

@@ -118,7 +118,7 @@ def test_export_has_sheets() -> None:
         output = Path(tmpdir) / "test.xlsx"
         export_to_excel(result, financials, assumptions, output)
         wb = openpyxl.load_workbook(output)
-        assert "Inputs" in wb.sheetnames
+        assert "Supuestos" in wb.sheetnames
         assert "Financials" in wb.sheetnames
         assert "Projection" in wb.sheetnames
         assert "DCF" in wb.sheetnames
@@ -146,7 +146,7 @@ def test_export_to_excel_bytes_is_valid_xlsx() -> None:
     assert data[:2] == b"PK"  # firma zip/xlsx
     wb = openpyxl.load_workbook(io.BytesIO(data))
     assert wb.sheetnames == [
-        "Inputs",
+        "Supuestos",
         "Financials",
         "Projection",
         "DCF",
