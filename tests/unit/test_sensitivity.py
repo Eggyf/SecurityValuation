@@ -29,6 +29,7 @@ BASE_PARAMS = {
     "g": 0.03,
     "terminal_method": TerminalValueMethod.GORDON_GROWTH,
     "terminal_multiple": None,
+    "roic_terminal": None,  # usa WACC por defecto
     "cash": 50.0,
     "short_term_investments": 10.0,
     "financial_debt": 200.0,
@@ -135,6 +136,7 @@ def test_sensitivity_wacc_growth_structure() -> None:
         convention=BASE_PARAMS["convention"],
         terminal_method=BASE_PARAMS["terminal_method"],
         terminal_multiple=BASE_PARAMS["terminal_multiple"],
+        roic_terminal=None,
         wacc_values=wacc_vals,
         growth_values=growth_vals,
     )
@@ -173,6 +175,7 @@ def test_sensitivity_wacc_growth_monotonic() -> None:
         convention=BASE_PARAMS["convention"],
         terminal_method=BASE_PARAMS["terminal_method"],
         terminal_multiple=BASE_PARAMS["terminal_multiple"],
+        roic_terminal=None,
         wacc_values=wacc_vals,
         growth_values=growth_vals,
     )
@@ -205,6 +208,7 @@ def test_sensitivity_margin_growth_structure() -> None:
         g=BASE_PARAMS["g"],
         terminal_method=BASE_PARAMS["terminal_method"],
         terminal_multiple=BASE_PARAMS["terminal_multiple"],
+        roic_terminal=None,
         cash=BASE_PARAMS["cash"],
         short_term_investments=BASE_PARAMS["short_term_investments"],
         financial_debt=BASE_PARAMS["financial_debt"],
@@ -243,6 +247,7 @@ def test_sensitivity_margin_growth_monotonic() -> None:
         g=BASE_PARAMS["g"],
         terminal_method=BASE_PARAMS["terminal_method"],
         terminal_multiple=BASE_PARAMS["terminal_multiple"],
+        roic_terminal=None,
         cash=BASE_PARAMS["cash"],
         short_term_investments=BASE_PARAMS["short_term_investments"],
         financial_debt=BASE_PARAMS["financial_debt"],
@@ -301,6 +306,7 @@ def test_sensitivity_symmetric() -> None:
         convention=BASE_PARAMS["convention"],
         terminal_method=BASE_PARAMS["terminal_method"],
         terminal_multiple=BASE_PARAMS["terminal_multiple"],
+        roic_terminal=None,
         wacc_values=wacc_vals,
         growth_values=growth_vals,
     )

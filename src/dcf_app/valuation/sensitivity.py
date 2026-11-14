@@ -39,6 +39,7 @@ def _dcf_price(
     g: float,
     terminal_method: TerminalValueMethod,
     terminal_multiple: float | None,
+    roic_terminal: float | None,
     cash: float,
     short_term_investments: float,
     financial_debt: float,
@@ -80,9 +81,13 @@ def _dcf_price(
 
         # 2. Valor terminal
         if terminal_method == TerminalValueMethod.GORDON_GROWTH:
-            # FCFF del año n+1 = FCFF_n x (1 + g)
-            fcff_last = forecast.fcff[-1] if forecast.fcff else 0.0
-            fcff_next = fcff_last * (1.0 + g)
+            # FCFF terminal normalizado (reinversión = g / ROIC)
+            roic_t = roic_terminal if roic_terminal is not None else wacc
+            reinv = g / roic_t if roic_t > 0 else 0.0
+            reinv = min(reinv, 1.0)
+            nopat_last = forecast.nopat[-1] if forecast.nopat else 0.0
+            nopat_next = nopat_last * (1.0 + g)
+            fcff_next = nopat_next * (1.0 - reinv)
             tv = terminal_value_gordon(fcff_next, wacc, g)
         else:
             # Múltiplo de salida: EBITDA_terminal x múltiplo
@@ -186,6 +191,7 @@ def sensitivity_wacc_growth(
     convention: DiscountConvention,
     terminal_method: TerminalValueMethod,
     terminal_multiple: float | None,
+    roic_terminal: float | None,
     # Rangos de sensibilidad
     wacc_values: list[float],
     growth_values: list[float],
@@ -221,6 +227,7 @@ def sensitivity_wacc_growth(
             g=g_val,
             terminal_method=terminal_method,
             terminal_multiple=terminal_multiple,
+            roic_terminal=roic_terminal,
             cash=cash,
             short_term_investments=short_term_investments,
             financial_debt=financial_debt,
@@ -254,6 +261,7 @@ def sensitivity_margin_growth(
     g: float,
     terminal_method: TerminalValueMethod,
     terminal_multiple: float | None,
+    roic_terminal: float | None,
     # Puente (fijos)
     cash: float,
     short_term_investments: float,
@@ -298,6 +306,7 @@ def sensitivity_margin_growth(
             g=g,
             terminal_method=terminal_method,
             terminal_multiple=terminal_multiple,
+            roic_terminal=roic_terminal,
             cash=cash,
             short_term_investments=short_term_investments,
             financial_debt=financial_debt,
