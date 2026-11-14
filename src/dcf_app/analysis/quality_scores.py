@@ -368,7 +368,9 @@ def earnings_quality(
 # ---------------------------------------------------------------------------
 # Ratios financieros
 # ---------------------------------------------------------------------------
-def financial_ratios(data: YearData, prev_data: YearData | None = None) -> dict[str, float | None]:
+def financial_ratios(
+    data: YearData, prev_data: YearData | None = None, tax_rate: float | None = None
+) -> dict[str, float | None]:
     """Calcula ratios financieros comunes.
 
     Returns dict con: gross_margin, ebit_margin, fcf_margin, roe, roic,
@@ -479,11 +481,12 @@ def financial_ratios(data: YearData, prev_data: YearData | None = None) -> dict[
     else:
         r["fcf_conversion"] = None
 
-    # ROIC (simplificado: NOPAT / Capital invertido)
-    # NOPAT = EBIT * (1 - tax_rate), pero no tenemos tax_rate aquí
-    # Usamos NOPAT ≈ EBIT * (1 - 0.21) como aproximación
+    # ROIC = NOPAT / Capital invertido
+    # NOPAT = EBIT * (1 - tax_rate)
+    # Capital invertido = Activos totales - Pasivos circulantes
     if ebit is not None and data.total_assets is not None and data.total_assets != 0:
-        nopat = ebit * (1 - 0.21)  # Aproximación
+        t = tax_rate if tax_rate is not None else 0.21
+        nopat = ebit * (1 - t)
         invested_capital = (data.total_assets or 0) - (data.current_liabilities or 0)
         if invested_capital != 0:
             r["roic"] = nopat / invested_capital

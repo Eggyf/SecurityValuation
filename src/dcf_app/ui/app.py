@@ -1022,9 +1022,7 @@ def main() -> None:
                     if len(financials.income_statements) >= 3:
                         prev_prev = extract_year_data(financials, -3)
                         prev_prev_assets = prev_prev.total_assets
-                    # Si no hay t-2, usar t-1 como proxy
-                    if prev_prev_assets is None:
-                        prev_prev_assets = prev.total_assets
+                    # Sin t-2: Piotroski devuelve None (no proxy)
                     piot = piotroski_f_score(cur, prev, prev_prev_assets)
                     st.subheader("Piotroski F-Score")
                     if piot.value is not None:
@@ -1039,34 +1037,46 @@ def main() -> None:
 
             # Altman Z-Score
             try:
-                wc = (
-                    (cur.current_assets or 0) - (cur.current_liabilities_total or 0)
-                    if cur.current_assets and cur.current_liabilities_total
-                    else None
-                )
-                z = altman_z_score(
-                    "Zdoubleprime",
-                    working_capital=wc,
-                    retained_earnings=cur.retained_earnings,
-                    ebit=cur.ebit,
-                    equity=cur.total_equity,  # valor contable
-                    sales=cur.revenue,
-                    total_assets=cur.total_assets,
-                    total_liabilities=cur.total_liabilities,
-                )
-                st.subheader("Altman Z-Score (Z'')")
-                if z.value is not None:
-                    st.metric("Z-Score", f"{z.value:.2f}")
-                    st.caption(f"Zona: {z.components.get('zone', 'N/A')}")
-                    with st.expander("Componentes"):
-                        for k, v in z.components.items():
-                            if k not in ("zone", "zones"):
-                                if isinstance(v, float):
-                                    st.write(f"- {k}: {v:.4f}")
-                                else:
-                                    st.write(f"- {k}: {v}")
+                # Detectar si es empresa financiera
+                from dcf_app.analysis import is_financial_company
+
+                if is_financial_company(sector=None):
+                    st.info("Altman Z-Score no aplicable a empresas financieras.")
                 else:
-                    st.warning(f"Datos insuficientes: {', '.join(z.missing)}")
+                    variant = st.selectbox(
+                        "Variante Altman",
+                        ["Zdoubleprime", "Z", "Zprime"],
+                        index=0,
+                        help="Z'': no manufacturera. Z: cotizada manufacturera. Z': privada.",
+                    )
+                    wc = (
+                        (cur.current_assets or 0) - (cur.current_liabilities_total or 0)
+                        if cur.current_assets and cur.current_liabilities_total
+                        else None
+                    )
+                    z = altman_z_score(
+                        variant,
+                        working_capital=wc,
+                        retained_earnings=cur.retained_earnings,
+                        ebit=cur.ebit,
+                        equity=cur.total_equity,
+                        sales=cur.revenue,
+                        total_assets=cur.total_assets,
+                        total_liabilities=cur.total_liabilities,
+                    )
+                    st.subheader(f"Altman Z-Score ({variant})")
+                    if z.value is not None:
+                        st.metric("Z-Score", f"{z.value:.2f}")
+                        st.caption(f"Zona: {z.components.get('zone', 'N/A')}")
+                        with st.expander("Componentes"):
+                            for k, v in z.components.items():
+                                if k not in ("zone", "zones"):
+                                    if isinstance(v, float):
+                                        st.write(f"- {k}: {v:.4f}")
+                                    else:
+                                        st.write(f"- {k}: {v}")
+                    else:
+                        st.warning(f"Datos insuficientes: {', '.join(z.missing)}")
             except Exception as e:
                 st.warning(f"No se pudo calcular Altman Z: {e}")
 
@@ -1112,7 +1122,8 @@ def main() -> None:
 
             # Ratios financieros
             try:
-                ratios = financial_ratios(cur)
+                tr = assumptions.tax_rate if assumptions else None
+                ratios = financial_ratios(cur, tax_rate=tr)
                 st.subheader("Ratios financieros")
                 ratio_cols = st.columns(3)
                 with ratio_cols[0]:

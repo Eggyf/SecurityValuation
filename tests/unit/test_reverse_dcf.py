@@ -126,6 +126,16 @@ class TestReverseDCFGrowth:
         assert r.implied_value is None
         assert "descuenta" in r.message.lower() or "sin solución" in r.message.lower()
 
+    def test_no_solution_extreme_price(self) -> None:
+        """Precio extremo (1.000.000.000) → mensaje de sin solución."""
+        financials = _make_financials()
+        assumptions = _make_assumptions()
+
+        r = reverse_dcf_growth(assumptions, financials, 1_000_000_000.0)
+        assert not r.has_solution
+        assert r.implied_value is None
+        assert "descuenta" in r.message.lower() or "sin solución" in r.message.lower()
+
     def test_no_solution_negative_price(self) -> None:
         """Precio negativo → error."""
         financials = _make_financials()
