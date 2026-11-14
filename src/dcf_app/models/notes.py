@@ -60,3 +60,4 @@ class SupplementaryNotes(BaseModel):
     non_recurring_items: list[NonRecurringItem] = Field(default_factory=list)
     debt_maturities: list[DebtMaturity] = Field(default_factory=list)
     weighted_avg_interest_rate: Fact | None = None  # unit: 'ratio'; para Kd
+    basic_shares_outstanding: Fact | None = None  # unit: 'shares'; de la portada

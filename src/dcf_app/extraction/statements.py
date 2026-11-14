@@ -116,6 +116,7 @@ def build_financial_statements(
     company_name: str,
     currency: str = "USD",
     max_years: int = MAX_YEARS_KEPT,
+    basic_shares: Fact | None = None,
 ) -> FinancialStatements:
     """Construye FinancialStatements a partir de facts iXBRL.
 
@@ -125,6 +126,7 @@ def build_financial_statements(
         currency: moneda de reporte.
         max_years: ejercicios maximos a conservar por estado (los mas
             recientes).
+        basic_shares: acciones basicas de la portada (dei:EntityCommonStockSharesOutstanding).
 
     Returns:
         FinancialStatements con los ejercicios detectados. Puede devolver
@@ -186,12 +188,19 @@ def build_financial_statements(
             reporting_currency=currency,
         )
 
+    from dcf_app.models.notes import SupplementaryNotes
+
+    notes = SupplementaryNotes()
+    if basic_shares is not None:
+        notes.basic_shares_outstanding = basic_shares
+
     return FinancialStatements(
         company_name=company_name,
         reporting_currency=currency,
         income_statements=income_list,
         balance_sheets=balance_list,
         cash_flow_statements=cashflow_list,
+        notes=notes,
     )
 
 

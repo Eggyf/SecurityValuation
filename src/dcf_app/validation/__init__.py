@@ -277,6 +277,33 @@ def validate_debt_consistency(financials: FinancialStatements) -> ValidationResu
     )
 
 
+def validate_shares_positive(financials: FinancialStatements) -> ValidationResult:
+    """Las acciones en circulación deben ser positivas."""
+    basic = financials.notes.basic_shares_outstanding
+    if basic is not None and basic.value is not None:
+        if basic.value <= 0:
+            return ValidationResult(
+                "shares_positive", ValidationStatus.ERROR, "Las acciones básicas son <= 0."
+            )
+        return ValidationResult(
+            "shares_positive", ValidationStatus.OK, f"Acciones básicas: {basic.value:,.0f}."
+        )
+    # Verificar acciones diluidas del income statement
+    if financials.income_statements:
+        inc = financials.income_statements[-1]
+        if (
+            inc.diluted_weighted_shares is not None
+            and inc.diluted_weighted_shares.value is not None
+            and inc.diluted_weighted_shares.value <= 0
+        ):
+            return ValidationResult(
+                "shares_positive", ValidationStatus.ERROR, "Las acciones diluidas son <= 0."
+            )
+    return ValidationResult(
+        "shares_positive", ValidationStatus.WARNING, "No hay datos de acciones en circulación."
+    )
+
+
 def validate_all(financials: FinancialStatements) -> list[ValidationResult]:
     """Ejecuta todas las validaciones y devuelve la lista de resultados."""
     return [
@@ -287,6 +314,7 @@ def validate_all(financials: FinancialStatements) -> list[ValidationResult]:
         validate_consecutive_years(financials),
         validate_cash_flow_vs_balance(financials),
         validate_debt_consistency(financials),
+        validate_shares_positive(financials),
     ]
 
 
@@ -316,4 +344,5 @@ __all__ = [
     "validate_gross_profit",
     "validate_net_income_consistency",
     "validate_scale_consistency",
+    "validate_shares_positive",
 ]

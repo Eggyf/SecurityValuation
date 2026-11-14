@@ -22,6 +22,7 @@ from dcf_app.extraction.ixbrl import extract_ixbrl
 from dcf_app.extraction.pdf_statements import extract_statements_from_pdf
 from dcf_app.extraction.statements import build_financial_statements
 from dcf_app.models.financials import FinancialStatements
+from dcf_app.models.notes import SupplementaryNotes
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +46,20 @@ def extract_from_html(html_path: str | Path) -> FinancialStatements:
 
     company_name = data.get("company_name") or path.stem
     currency = data.get("currency") or "USD"
+    basic_shares = data.get("basic_shares")
+
+    if basic_shares is not None:
+        notes = SupplementaryNotes(basic_shares_outstanding=basic_shares)
+    else:
+        notes = SupplementaryNotes()
 
     if not facts:
         logger.warning("iXBRL: no se extrajo ningun fact de %s", path.name)
-        return FinancialStatements(company_name=company_name, reporting_currency=currency)
+        return FinancialStatements(
+            company_name=company_name, reporting_currency=currency, notes=notes
+        )
 
-    return build_financial_statements(facts, company_name, currency)
+    return build_financial_statements(facts, company_name, currency, basic_shares=basic_shares)
 
 
 def extract_from_pdf(pdf_path: str | Path) -> FinancialStatements:

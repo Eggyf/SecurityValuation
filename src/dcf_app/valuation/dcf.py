@@ -316,7 +316,16 @@ def run_dcf(
     )
 
     # 9. Acciones diluidas
-    basic_shares = assumptions.shares_outstanding
+    # Acciones básicas: preferir las de la portada del 10-K (dei:EntityCommonStockSharesOutstanding)
+    # sobre el input manual. Si no hay, usar el input del usuario.
+    basic_shares = None
+    bs_fact = financials.notes.basic_shares_outstanding
+    if bs_fact is not None and bs_fact.value is not None:
+        bs_val = bs_fact.to_scale(Scale.MILLIONS)
+        if bs_val is not None and bs_val > 0:
+            basic_shares = bs_val
+    if basic_shares is None:
+        basic_shares = assumptions.shares_outstanding
     if basic_shares is None:
         raise ValueError("Las acciones en circulación son requeridas.")
 

@@ -140,7 +140,7 @@ def test_validate_all() -> None:
     """validate_all devuelve lista de resultados."""
     financials = _make_financials_balanced()
     results = validate_all(financials)
-    assert len(results) == 7
+    assert len(results) == 8
     assert not has_errors(results)
 
 

@@ -54,6 +54,11 @@ def _parse_scale(scale_attr: str | None) -> Scale:
     return _SCALE_MAP.get(str(scale_attr).strip(), Scale.UNITS)
 
 
+def _scale_to_power(scale: Scale) -> int:
+    """Convierte Scale a potencia de 10."""
+    return {Scale.UNITS: 0, Scale.THOUSANDS: 3, Scale.MILLIONS: 6, Scale.BILLIONS: 9}.get(scale, 0)
+
+
 def _find_child(parent: Tag, names: list[str]) -> Tag | None:
     """Busca el primer hijo con alguno de los nombres dados."""
     for name in names:
@@ -167,14 +172,22 @@ def extract_ixbrl(html_path: str | Path) -> dict[str, Any]:
     skipped_dimensional = 0
     skipped_unresolved = 0
 
+    # Cubrir acciones básicas de la portada (dei:EntityCommonStockSharesOutstanding)
+    # Estas pueden tener dimensiones (varias clases de acciones); se suman.
+    basic_shares_value: float | None = None
+    basic_shares_date: date | None = None
+
     for tag in soup.find_all("ix:nonfraction"):
         concept = tag.get("name", "")
         if not concept:
             continue
 
+        concept_lower = concept.lower()
+        is_cover_shares = "entitycommonstocksharesoutstanding" in concept_lower
+
         context_ref = str(tag.get("contextref", ""))
         ctx = contexts.get(context_ref)
-        if ctx is not None and ctx.get("dimensional"):
+        if ctx is not None and ctx.get("dimensional") and not is_cover_shares:
             skipped_dimensional += 1
             continue
 
@@ -190,6 +203,18 @@ def extract_ixbrl(html_path: str | Path) -> dict[str, Any]:
         value = _parse_value(tag.get_text(), sign_attr)
         if value is None:
             continue
+
+        # Capturar acciones básicas de la portada
+        if is_cover_shares:
+            scale = _parse_scale(tag.get("scale"))
+            if basic_shares_value is None:
+                basic_shares_value = value * (10 ** _scale_to_power(scale))
+            else:
+                basic_shares_value += value * (10 ** _scale_to_power(scale))
+            # Usar la fecha del contexto si está disponible
+            if basic_shares_date is None:
+                _, basic_shares_date = _parse_period(context_ref, contexts)
+            continue  # No añadir como fact normal (se maneja aparte)
 
         # Determinar si es extension de la empresa
         kind = (
@@ -235,11 +260,28 @@ def extract_ixbrl(html_path: str | Path) -> dict[str, Any]:
     company_name = _extract_company_name(soup)
     currency = _extract_currency(soup)
 
+    # Convertir basic_shares a Fact si se encontró
+    basic_shares_fact = None
+    if basic_shares_value is not None:
+        basic_shares_fact = Fact(
+            value=basic_shares_value,
+            unit="shares",
+            scale=Scale.UNITS,
+            period_start=None,
+            period_end=basic_shares_date or __import__("datetime").date.today(),
+            source=SourceRef(
+                kind=SourceKind.IXBRL,
+                concept="dei:EntityCommonStockSharesOutstanding",
+                location="Cover page: EntityCommonStockSharesOutstanding",
+            ),
+        )
+
     return {
         "facts": facts,
         "contexts": contexts,
         "company_name": company_name,
         "currency": currency,
+        "basic_shares": basic_shares_fact,
     }
 
 
