@@ -115,11 +115,11 @@ def _compute_historical_metrics(financials: FinancialStatements) -> dict[str, An
     st_debt = _extract_fact_value(balance.short_term_debt)
     lt_debt = _extract_fact_value(balance.long_term_debt)
     debt = st_debt + lt_debt
-    leases = (
-        _extract_fact_value(balance.operating_lease_liabilities_current)
-        + _extract_fact_value(balance.operating_lease_liabilities_noncurrent)
-        + _extract_fact_value(balance.finance_lease_liabilities)
-    )
+    # Leases: solo los financieros entran en el puente y en el WACC
+    # (AGENTS.md §7.3, política US GAAP: operativos no se restan ni entran
+    # en la deuda porque su coste ya está en el EBIT)
+    finance_leases = _extract_fact_value(balance.finance_lease_liabilities)
+    leases = finance_leases  # solo financieros
     preferred = _extract_fact_value(balance.preferred_stock)
     nci = _extract_fact_value(balance.non_controlling_interest)
 
@@ -182,6 +182,12 @@ def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
         debt = metrics["debt"]
         if debt > 0 and interest > 0:
             kd = interest / debt
+            if kd < rf:
+                logger.warning(
+                    "Kd (%.2f %%) < Rf (%.2f %%): coste de deuda poco creíble.",
+                    kd * 100,
+                    rf * 100,
+                )
         else:
             raise ValueError(
                 "El coste de la deuda (Kd) es requerido para el WACC. "
@@ -200,7 +206,7 @@ def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
     if equity_value is None or debt_value is None:
         # Usar valores contables como proxy (AGENTS.md §7.3)
         equity_value = metrics["equity_value"]
-        debt_value = metrics["debt"]
+        debt_value = metrics["debt"] + metrics["leases"]  # leases financieros como deuda
         if equity_value == 0.0 and debt_value == 0.0:
             raise ValueError(
                 "Se requiere el valor de mercado del equity y/o de la deuda "
@@ -227,8 +233,26 @@ def run_dcf(
     Raises:
         ValueError: si faltan datos requeridos.
     """
+    # 0. Verificar que no sea empresa financiera
+    from dcf_app.analysis.quality_scores import is_financial_company
+
+    if assumptions.sic_code and is_financial_company(sic_code=assumptions.sic_code):
+        raise ValueError(
+            f"Empresa financiera (SIC {assumptions.sic_code}): "
+            "el modelo DCF FCFF no es aplicable a bancos/aseguradoras. "
+            "Use un modelo específico."
+        )
+
     # 1. Extraer métricas históricas
     metrics = _compute_historical_metrics(financials)
+
+    # Aviso EBIT negativo
+    if metrics["ebit_margin"] < 0:
+        logger.warning(
+            "EBIT del último ejercicio es negativo (%.1f %%). "
+            "La v1 no cubre este caso (AGENTS.md §15).",
+            metrics["ebit_margin"] * 100,
+        )
 
     # 2. Calcular WACC
     wacc_val = _compute_wacc(assumptions, metrics)
@@ -308,6 +332,11 @@ def run_dcf(
         nopat_last = forecast.nopat[-1] if forecast.nopat else 0.0
         nopat_next = nopat_last * (1.0 + g)
         fcff_next = nopat_next * (1.0 - reinvestment_rate)
+        if fcff_next <= 0:
+            logger.warning(
+                "FCFF terminal (%.1f) <= 0: no se normaliza el valor terminal.",
+                fcff_next,
+            )
         tv = terminal_value_gordon(fcff_next, wacc_val, g)
     else:
         ebit_last = forecast.ebit[-1] if forecast.ebit else 0.0

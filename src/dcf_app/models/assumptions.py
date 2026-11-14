@@ -92,6 +92,7 @@ class Assumptions(BaseModel):
 
     # --- Otros ---
     discount_convention: DiscountConvention = DiscountConvention.END_OF_YEAR
+    sic_code: str | None = None  # código SIC para detectar financieras/REITs
 
     @model_validator(mode="after")
     def _terminal_growth_constraints(self) -> Self:

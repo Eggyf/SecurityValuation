@@ -133,6 +133,18 @@ def _download_from_edgar(ticker: str) -> FinancialStatements | None:
             st.info(f"CIK: {cik}")
 
             provider = get_edgar_provider()
+
+            # Obtener SIC code
+            sic_code = None
+            try:
+                subs = provider.get_filings_list(cik)
+                if isinstance(subs.data, dict):
+                    sic_code = subs.data.get("sic")
+                    if sic_code:
+                        st.info(f"SIC: {sic_code}")
+            except Exception:
+                pass
+
             filings = provider.get_recent_filings(cik, "10-K", n=3)
             if not filings:
                 st.error(f"No se encontro ningun 10-K para {ticker}")
@@ -178,6 +190,8 @@ def _download_from_edgar(ticker: str) -> FinancialStatements | None:
                 return None
 
             latest = all_financials[0]
+            if sic_code is not None:
+                latest.sic_code = str(sic_code)
             for warning in validate_extraction(latest):
                 st.warning(warning)
 
@@ -543,10 +557,13 @@ def _render_assumptions_form() -> Assumptions | None:
     # Datos de la empresa (de los estados financieros si están disponibles)
     company_name = "Empresa"
     fiscal_year_end = date(2024, 12, 31)
+    sic_code = None
     if financials is not None:
         company_name = financials.company_name
         if financials.income_statements:
             fiscal_year_end = financials.income_statements[-1].period_end
+        # Obtener SIC code si está disponible
+        sic_code = getattr(financials, "sic_code", None)
 
     try:
         assumptions = Assumptions(
@@ -577,6 +594,7 @@ def _render_assumptions_form() -> Assumptions | None:
                 if convention == "Fin de año"
                 else DiscountConvention.MID_YEAR
             ),
+            sic_code=sic_code,
         )
         return assumptions
     except Exception as e:
@@ -875,6 +893,22 @@ def main() -> None:
             if not can_run_valuation(vr):
                 st.error("Hay errores de validación. Corrígelos antes de valorar.")
                 st.stop()
+
+            # Aviso de empresa financiera / REIT
+            if assumptions.sic_code:
+                from dcf_app.analysis.quality_scores import is_financial_company
+
+                if is_financial_company(sic_code=assumptions.sic_code):
+                    st.error(
+                        f"Empresa financiera (SIC {assumptions.sic_code}): "
+                        "el modelo DCF FCFF no es aplicable. Bloqueado."
+                    )
+                    st.stop()
+                if assumptions.sic_code == "6798":
+                    st.warning(
+                        "⚠️ REIT detectado (SIC 6798): el modelo DCF FCFF "
+                        "no es el más adecuado. Considere un modelo específico."
+                    )
 
             if st.button("Ejecutar DCF"):
                 if st.session_state.financials is None:

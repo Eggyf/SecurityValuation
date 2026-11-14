@@ -103,6 +103,7 @@ class FinancialStatements(BaseModel):
 
     company_name: str = Field(min_length=1)
     cik: str | None = None
+    sic_code: str | None = None
     reporting_currency: str = "USD"
     income_statements: list[IncomeStatement] = Field(default_factory=list)
     balance_sheets: list[BalanceSheet] = Field(default_factory=list)

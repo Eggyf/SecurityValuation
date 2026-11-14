@@ -136,7 +136,7 @@ def test_compute_historical_metrics() -> None:
     assert math.isclose(metrics["cash"], 50.0)
     assert math.isclose(metrics["short_term_investments"], 10.0)
     assert math.isclose(metrics["debt"], 200.0)
-    assert math.isclose(metrics["leases"], 20.0)
+    assert math.isclose(metrics["leases"], 0.0)  # Solo finance leases; operativos no se restan
     assert math.isclose(metrics["base_revenue"], 900.0)
 
 

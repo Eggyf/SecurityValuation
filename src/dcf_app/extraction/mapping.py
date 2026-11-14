@@ -41,6 +41,7 @@ INCOME_STATEMENT_MAP: Final[dict[str, str]] = {
     "incomefromoperations": "ebit",
     # Intereses
     "interestexpense": "interest_expense",
+    "interestexpensenonoperating": "interest_expense",
     "interestexpensegross": "interest_expense",
     "interestincomeexpensenet": "interest_expense",
     # Beneficio antes de impuestos
