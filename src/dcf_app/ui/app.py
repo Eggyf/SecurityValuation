@@ -46,20 +46,28 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Estado de sesión
+# Estado de sesion
 # ---------------------------------------------------------------------------
-if "financials" not in st.session_state:
-    st.session_state.financials = None
-if "assumptions" not in st.session_state:
-    st.session_state.assumptions = None
-if "dcf_result" not in st.session_state:
-    st.session_state.dcf_result = None
-if "dcf_assumptions" not in st.session_state:
-    st.session_state.dcf_assumptions = None
-if "validation_results" not in st.session_state:
-    st.session_state.validation_results = []
-if "uploaded_file_name" not in st.session_state:
-    st.session_state.uploaded_file_name = None
+
+
+def init_state() -> None:
+    """Inicializa el estado de sesion (AGENTS.md: claves con prefijo dcf_)."""
+    defaults: dict[str, object] = {
+        "financials": None,
+        "assumptions": None,
+        "dcf_result": None,
+        "dcf_assumptions": None,
+        "validation_results": [],
+        "uploaded_file_name": None,
+        "online_mode": False,
+        "edgar_ticker": "",
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+init_state()
 
 # ---------------------------------------------------------------------------
 # Disclaimer
