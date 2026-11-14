@@ -598,6 +598,10 @@ def _render_results(result: Any) -> None:
     if result.tv_percentage > 0.75:
         st.warning(f"⚠️ El valor terminal representa el {result.tv_percentage:.1%} del EV (> 75%).")
 
+    # Información del valor terminal normalizado
+    if result.reinvestment_rate is not None:
+        st.caption(f"Reinversión terminal: {result.reinvestment_rate:.1%} (g/ROIC)")
+
     # Proyección
     st.subheader("Proyección de flujos (FCFF)")
     import pandas as pd

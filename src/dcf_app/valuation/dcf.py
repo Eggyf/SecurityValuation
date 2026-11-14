@@ -5,6 +5,7 @@ Función principal: ``run_dcf(assumptions, financials) -> DCFResult``.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from dcf_app.models.assumptions import (
@@ -34,6 +35,8 @@ from dcf_app.valuation.wacc import (
     terminal_value_multiple,
     wacc,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_fact_value(fact: Fact | None, scale: Scale = Scale.MILLIONS) -> float:
@@ -284,9 +287,27 @@ def run_dcf(
     terminal_method = assumptions.terminal_value_method
     g = growth_terminal
 
+    # Validar WACC > g
+    if wacc_val <= g:
+        raise ValueError(
+            f"WACC ({wacc_val:.4f}) debe ser mayor que g ({g:.4f}). "
+            "Ajuste los supuestos."
+        )
+
+    # ROIC terminal (por defecto = WACC, sin exceso de rentabilidad)
+    roic_terminal = assumptions.roic_terminal
+    if roic_terminal is None:
+        roic_terminal = wacc_val  # conservador: sin exceso de rentabilidad
+
+    # Reinvestment rate = g / ROIC_terminal
+    reinvestment_rate = g / roic_terminal if roic_terminal > 0 else 0.0
+    reinvestment_rate = min(reinvestment_rate, 1.0)  # cap at 100%
+
     if terminal_method == TerminalValueMethod.GORDON_GROWTH:
-        fcff_last = forecast.fcff[-1] if forecast.fcff else 0.0
-        fcff_next = fcff_last * (1.0 + g)
+        # FCFF terminal normalizado (AGENTS.md §7.4)
+        nopat_last = forecast.nopat[-1] if forecast.nopat else 0.0
+        nopat_next = nopat_last * (1.0 + g)
+        fcff_next = nopat_next * (1.0 - reinvestment_rate)
         tv = terminal_value_gordon(fcff_next, wacc_val, g)
     else:
         ebit_last = forecast.ebit[-1] if forecast.ebit else 0.0
@@ -296,6 +317,17 @@ def run_dcf(
         if mult is None:
             raise ValueError("Se requiere el múltiplo de salida para el método de múltiplo.")
         tv = terminal_value_multiple(ebitda_last, mult)
+
+    # Verificar CapEx >= D&A en el año terminal
+    if forecast.capex and forecast.da:
+        capex_terminal = forecast.capex[-1]
+        da_terminal = forecast.da[-1]
+        if abs(capex_terminal) < abs(da_terminal):
+            logger.warning(
+                "CapEx terminal (%.0f) < D&A (%.0f): reinversión incoherente con g.",
+                capex_terminal,
+                da_terminal,
+            )
 
     # 6. Valor presente de FCFF y TV
     pv_fcff = present_value(forecast.fcff, wacc_val, assumptions.discount_convention)
@@ -463,5 +495,5 @@ def run_dcf(
         sensitivity_wacc_growth=sens_wacc_growth,
         sensitivity_margin_growth=sens_margin_growth,
         tv_percentage=tv_pct,
-        reinvestment_rate=None,
+        reinvestment_rate=reinvestment_rate,
     )

@@ -79,6 +79,9 @@ class Assumptions(BaseModel):
     # --- Valor terminal (AGENTS.md §7.4) ---
     terminal_value_method: TerminalValueMethod = TerminalValueMethod.GORDON_GROWTH
     exit_multiple_ebitda: float | None = Field(None, ge=0.0)  # múltiplo de salida EV/EBITDA
+    roic_terminal: float | None = Field(
+        None, ge=0.0
+    )  # ROIC terminal para reinversión (None = usar WACC)
 
     # --- Puente EV→equity (AGENTS.md §7.6) ---
     stock_price_current: float | None = Field(None, ge=0.0)  # precio de mercado actual
