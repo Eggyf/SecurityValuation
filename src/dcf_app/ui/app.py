@@ -326,6 +326,14 @@ def _render_assumptions_form() -> Assumptions | None:
         label_visibility="collapsed",
     )
 
+    # Explicación del escenario
+    if scenario == "Prudente":
+        st.caption("Supones que las ventas crecerán la mitad de lo habitual y la rentabilidad exigida sube 1 punto.")  # noqa: E501
+    elif scenario == "Equilibrado":
+        st.caption("Supones lo más razonable según el pasado de la empresa.")
+    else:
+        st.caption("Supones que las cosas salen bien, pero sin fantasías.")
+
     # Intentar precargar datos de mercado (FRED + Twelve Data + Damodaran)
     rf_default = None
     try:
@@ -481,7 +489,7 @@ def _render_assumptions_form() -> Assumptions | None:
                 10.0,
                 rf_default,
                 0.1,
-                help="Bono del Tesoro de EE. UU. a 10 años. No está en el 10-K (AGENTS.md §7.3).",
+                help="Lo que rinde el bono del Tesoro de EE. UU. a 10 años. Es el punto de partida del cálculo.",  # noqa: E501
             )
         )
         beta = st.number_input(
@@ -490,7 +498,7 @@ def _render_assumptions_form() -> Assumptions | None:
             3.0,
             None,
             0.1,
-            help="Beta apalancada. No está en el 10-K (AGENTS.md §7.3).",
+            help="Cuánto se mueve la acción respecto al mercado. Más de 1: más volátil. Menos de 1: más estable. Búscala en Yahoo Finance.",  # noqa: E501
         )
         erp = _pct(
             st.number_input(
@@ -499,7 +507,7 @@ def _render_assumptions_form() -> Assumptions | None:
                 15.0,
                 erp_default,
                 0.5,
-                help="Referencia: datasets de Damodaran. No está en el 10-K (AGENTS.md §7.3).",
+                help="Rentabilidad extra que se exige por invertir en bolsa en vez de en un bono sin riesgo. Precargada desde Damodaran.",  # noqa: E501
             )
         )
         if erp is not None and (erp < 0.02 or erp > 0.10):
