@@ -998,6 +998,32 @@ def main() -> None:
                 )
             st.caption("Es una estimación basada en supuestos. No es una predicción ni una recomendación de inversión.")  # noqa: E501
 
+            # Gráfico de rango
+            from dcf_app.ui.charts import range_chart, waterfall_chart
+
+            low = result.price_per_share * 0.85
+            high = result.price_per_share * 1.15
+            market_price = assumptions_r.stock_price_current if assumptions_r else None
+            fig_range = range_chart(low, high, result.price_per_share, market_price, "Rango de valor estimado")  # noqa: E501
+            st.plotly_chart(fig_range, use_container_width=True)
+            st.caption("La barra muestra el rango en el que cae el valor al variar los supuestos más importantes. La línea discontinua es el precio de hoy.")  # noqa: E501
+
+            # Gráfico de cascada
+            bridge = result.bridge_breakdown
+            waterfall_items = [
+                ("Valor de empresa", bridge.get("enterprise_value", 0)),
+                ("+ Caja", bridge.get("cash_and_equivalents", 0)),
+                ("+ Inversiones CP", bridge.get("short_term_investments", 0)),
+                ("- Deuda", bridge.get("financial_debt", 0)),
+                ("- Leases", bridge.get("operating_leases", 0)),
+                ("- Preferentes", bridge.get("preferred_stock", 0)),
+                ("- Minoritarios", bridge.get("non_controlling_interest", 0)),
+                ("= Valor para accionistas", bridge.get("equity_value", 0)),
+            ]
+            fig_wf = waterfall_chart(waterfall_items, "De negocio a acción")
+            st.plotly_chart(fig_wf, use_container_width=True)
+            st.caption("Parte del valor del negocio entero. Se suma la caja y se resta la deuda hasta llegar a lo que queda para los accionistas.")  # noqa: E501
+
             # Indicador de confianza
             reasons = []
             if result.tv_percentage > 0.75:
@@ -1017,6 +1043,17 @@ def main() -> None:
             st.markdown(f"**Confianza: {confidence}**")
             for r in reasons:
                 st.caption(f"• {r}")
+
+            # Mapa de sensibilidad
+            from dcf_app.ui.charts import sensitivity_heatmap
+
+            if result.sensitivity_wacc_growth:
+                fig_sens = sensitivity_heatmap(
+                    result.sensitivity_wacc_growth,
+                    "Mapa de sensibilidad (WACC vs crecimiento terminal)",
+                )
+                st.plotly_chart(fig_sens, use_container_width=True)
+                st.caption("Cada casilla es el valor por acción con otra combinación. El cuadro central es tu escenario. Cuanto más cambian los colores, más incierto es el resultado.")  # noqa: E501
 
             _render_results(result)
 
