@@ -2,79 +2,123 @@
 
 from __future__ import annotations
 
+# Paleta simplificada: azul + ámbar (complementarios, accesibles)
+LIGHT_CSS = ""  # Usar tema por defecto de Streamlit
+
 DARK_CSS = """
 <style>
-/* Fondo principal */
-.stApp { background-color: #0F172A; color: #E5E7EB; }
-.stApp > header { background-color: #0F172A; }
+/* Fondo y texto principal */
+.stApp, .stApp > div, .main {
+    background-color: #0F172A !important;
+    color: #E2E8F0 !important;
+}
+.stApp > header { background-color: #0F172A !important; }
 
 /* Sidebar */
-section[data-testid="stSidebar"] { background-color: #1E293B; }
-section[data-testid="stSidebar"] * { color: #E5E7EB; }
+section[data-testid="stSidebar"] {
+    background-color: #1E293B !important;
+}
+section[data-testid="stSidebar"] * { color: #E2E8F0 !important; }
 
-/* Texto general */
-p, span, label, div { color: #E5E7EB; }
+/* Texto */
+h1, h2, h3, h4, h5, h6, p, span, label, div, li, td, th {
+    color: #E2E8F0 !important;
+}
 
 /* Inputs */
-.stTextInput input, .stNumberInput input, .stSelectbox select {
-    background-color: #334155; color: #E5E7EB; border-color: #475569;
+input, textarea, select {
+    background-color: #334155 !important;
+    color: #E2E8F0 !important;
+    border-color: #475569 !important;
 }
-.stTextInput input:focus, .stNumberInput input:focus {
-    border-color: #60A5FA;
+input:focus, textarea:focus, select:focus {
+    border-color: #60A5FA !important;
+    box-shadow: 0 0 0 1px #60A5FA !important;
 }
 
 /* Botones */
-.stButton button {
-    background-color: #1D4ED8; color: #FFFFFF; border: none;
+button[kind="primary"], .stButton > button {
+    background-color: #2563EB !important;
+    color: #FFFFFF !important;
+    border: none !important;
 }
-.stButton button:hover { background-color: #2563EB; }
+button[kind="primary"]:hover, .stButton > button:hover {
+    background-color: #1D4ED8 !important;
+}
 
 /* Tabs */
-.stTabs [data-baseweb="tab-list"] { background-color: #1E293B; }
-.stTabs [data-baseweb="tab"] { color: #9CA3AF; }
-.stTabs [aria-selected="true"] { color: #60A5FA; border-bottom-color: #60A5FA; }
+button[data-baseweb="tab"] {
+    color: #94A3B8 !important;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #60A5FA !important;
+    border-bottom-color: #60A5FA !important;
+}
 
 /* Métricas */
-[data-testid="stMetricValue"] { color: #E5E7EB; }
-[data-testid="stMetricLabel"] { color: #9CA3AF; }
+[data-testid="stMetricValue"] { color: #E2E8F0 !important; }
+[data-testid="stMetricLabel"] { color: #94A3B8 !important; }
+[data-testid="stMetricDelta"] { color: #94A3B8 !important; }
 
 /* Expanders */
-.streamlit-expanderHeader { color: #E5E7EB; background-color: #1E293B; }
-.streamlit-expanderContent { background-color: #0F172A; }
+details { background-color: #1E293B !important; border-color: #334155 !important; }
+details summary { color: #E2E8F0 !important; }
+details > div { background-color: #0F172A !important; }
 
-/* DataFrames */
-.stDataFrame { background-color: #1E293B; }
-.stDataFrame th { background-color: #334155; color: #E5E7EB; }
-.stDataFrame td { color: #E5E7EB; }
+/* DataFrames / tablas */
+.stDataFrame, .stTable { background-color: #1E293B !important; }
+.stDataFrame th, .stTable th { background-color: #334155 !important; color: #E2E8F0 !important; }
+.stDataFrame td, .stTable td { color: #E2E8F0 !important; }
 
 /* Avisos */
-.stAlert { background-color: #1E293B; color: #E5E7EB; }
+.stAlert { background-color: #1E293B !important; color: #E2E8F0 !important; }
+div[data-testid="stAlert"] { background-color: #1E293B !important; }
 
 /* Sliders */
-.stSlider [data-baseweb="slider"] { background-color: #334155; }
+.stSlider [data-baseweb="slider"] { background-color: #334155 !important; }
+.stSlider [role="slider"] { background-color: #2563EB !important; }
 
-/* Radio buttons */
-.stRadio label { color: #E5E7EB; }
-
-/* Markdown */
-.stMarkdown { color: #E5E7EB; }
+/* Radio / checkbox */
+.stRadio label, .stCheckbox label { color: #E2E8F0 !important; }
 
 /* Captions */
-.stCaption { color: #9CA3AF; }
+.stCaption, [data-testid="stCaptionContainer"] { color: #94A3B8 !important; }
+
+/* Markdown */
+.stMarkdown { color: #E2E8F0 !important; }
+
+/* Selectbox */
+.stSelectbox [data-baseweb="select"] { background-color: #334155 !important; }
+.stSelectbox [data-baseweb="select"] * { color: #E2E8F0 !important; }
+
+/* Number input */
+.stNumberInput [data-baseweb="input"] { background-color: #334155 !important; }
+.stNumberInput [data-baseweb="input"] * { color: #E2E8F0 !important; }
+
+/* Text input */
+.stTextInput [data-baseweb="input"] { background-color: #334155 !important; }
+.stTextInput [data-baseweb="input"] * { color: #E2E8F0 !important; }
+
+/* File uploader */
+.stFileUploader { background-color: #1E293B !important; }
+
+/* Progress bar */
+.stProgress > div > div { background-color: #2563EB !important; }
+
+/* Dividers */
+hr { border-color: #334155 !important; }
 </style>
 """
-
-LIGHT_CSS = ""  # Usar tema por defecto de Streamlit
 
 PALETTES = {
     "light": {
         "bg": "#FFFFFF", "surface": "#F8FAFC", "text": "#1F2937", "muted": "#4B5563",
-        "primary": "#1D4ED8", "primary_on": "#FFFFFF",
-        "above": "#1D4ED8", "below": "#C2410C",
+        "primary": "#2563EB", "primary_on": "#FFFFFF",
+        "above": "#2563EB", "below": "#C2410C",
         "range_fill": "#BFDBFE", "grid": "#E5E7EB", "price_line": "#111827",
     },
     "dark": {
-        "bg": "#0F172A", "surface": "#1E293B", "text": "#E5E7EB", "muted": "#9CA3AF",
+        "bg": "#0F172A", "surface": "#1E293B", "text": "#E2E8F0", "muted": "#94A3B8",
         "primary": "#60A5FA", "primary_on": "#0F172A",
         "above": "#60A5FA", "below": "#FB923C",
         "range_fill": "#1E3A8A", "grid": "#334155", "price_line": "#F8FAFC",

@@ -11,8 +11,12 @@ def range_chart(
     center: float,
     market_price: float | None = None,
     title: str = "Rango de valor",
+    palette: dict[str, str] | None = None,
 ) -> go.Figure:
     """Gráfico de rango horizontal con precio de mercado.
+
+    Args:
+        palette: paleta de colores (no usada por ahora).
 
     Args:
         low: límite inferior del rango.
