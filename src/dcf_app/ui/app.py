@@ -786,6 +786,7 @@ def main() -> None:
             "5. Reverse DCF",
             "6. Calidad",
             "7. Monte Carlo",
+            "8. Football Field",
         ]
     )
 
@@ -1385,6 +1386,67 @@ def main() -> None:
                     "Distribución bajo estos supuestos. "
                     "No es una probabilidad real de acierto."
                 )
+
+    # --- Tab 8: Football Field ---
+    with tabs[7]:
+        st.header("Football Field — Rango de valor por método")
+        st.markdown(
+            "Compara el rango de valor estimado por diferentes métodos. "
+            "Cada barra es un método diferente."
+        )
+
+        result = st.session_state.dcf_result
+        financials = st.session_state.financials
+
+        if result is None:
+            st.info("Ejecuta primero el DCF en la pestaña de Supuestos.")
+        else:
+            from dcf_app.valuation.football_field import (
+                create_football_field_chart,
+            )
+            from dcf_app.valuation.multiples import build_football_field
+
+            # DCF range from sensitivity
+            dcf_low = None
+            dcf_high = None
+            if result.sensitivity_wacc_growth:
+                vals = [p for p in result.sensitivity_wacc_growth.values() if p == p]  # not NaN
+                if vals:
+                    dcf_low = min(vals)
+                    dcf_high = max(vals)
+
+            # Monte Carlo range
+            mc_p25 = None
+            mc_p75 = None
+            # (would come from Monte Carlo result if available)
+
+            market_price = None
+            if st.session_state.assumptions is not None:
+                market_price = st.session_state.assumptions.stock_price_current
+
+            ranges = build_football_field(
+                dcf_low=dcf_low,
+                dcf_high=dcf_high,
+                mc_p25=mc_p25,
+                mc_p75=mc_p75,
+                market_price=market_price,
+            )
+
+            if ranges:
+                fig = create_football_field_chart(ranges, market_price)
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "Cada barra es un método diferente. La línea discontinua es el precio de hoy."
+                )
+            else:
+                st.info("No hay datos suficientes para el football field.")
+
+            st.markdown("---")
+            st.subheader("Múltiplos de comparables")
+            st.info(
+                "Introduce los datos de los peers para calcular múltiplos. "
+                "Funcionalidad en desarrollo."
+            )
 
     # Disclaimer final
     st.markdown("---")

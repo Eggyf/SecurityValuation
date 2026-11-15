@@ -7,6 +7,7 @@ from dcf_app.valuation.bridge import (
     treasury_stock_diluted_shares,
 )
 from dcf_app.valuation.dcf import run_dcf
+from dcf_app.valuation.football_field import create_football_field_chart
 from dcf_app.valuation.forecast import (
     ForecastResult,
     build_forecast,
@@ -20,6 +21,13 @@ from dcf_app.valuation.forecast import (
     project_revenue,
 )
 from dcf_app.valuation.monte_carlo import MonteCarloResult, simulate
+from dcf_app.valuation.multiples import (
+    FootballFieldRange,
+    MultipleResult,
+    PeerData,
+    build_football_field,
+    compute_multiples,
+)
 from dcf_app.valuation.sensitivity import (
     _dcf_price,
     sensitivity_2d,
@@ -37,14 +45,20 @@ from dcf_app.valuation.wacc import (
 )
 
 __all__ = [
+    "FootballFieldRange",
     "ForecastResult",
     "MonteCarloResult",
+    "MultipleResult",
+    "PeerData",
     "_dcf_price",
     "bridge_summary",
     "bridge_to_equity",
+    "build_football_field",
     "build_forecast",
     "capm_ke",
+    "compute_multiples",
     "cost_of_debt",
+    "create_football_field_chart",
     "discount_factor",
     "present_value",
     "price_per_share",
