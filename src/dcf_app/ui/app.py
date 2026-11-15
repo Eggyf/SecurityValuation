@@ -744,16 +744,11 @@ def main() -> None:
         st.markdown(DISCLAIMER)
 
     # Aplicar tema CSS
-    if st.session_state.theme == "dark":
-        st.markdown(
-            """
-            <style>
-            .stApp { background-color: #0F172A; color: #E5E7EB; }
-            .stSidebar { background-color: #1E293B; }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+    from dcf_app.ui.theme import get_css
+
+    css = get_css(st.session_state.theme)
+    if css:
+        st.markdown(css, unsafe_allow_html=True)
 
     st.title("📊 Valoración DCF desde Form 10-K")
 
