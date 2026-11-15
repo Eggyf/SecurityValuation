@@ -4,43 +4,43 @@ Veredicto: APTA CON RESERVAS
 
 ## Resumen
 
-La app ha mejorado significativamente tras 7 paquetes de corrección. 227 tests pasan, ruff y mypy están limpios. El motor DCF es determinista y las fórmulas verifican correctamente contra los vectores (WACC = 8,30 %, dilución TSM = 110,0, Beneish = −2,48, Altman Z' = 1,916, Altman Z'' = 3,487). Se ha creado una referencia independiente (`tests/reference/dcf_reference.py`) y 7 tests de paridad. Quedan 3 hallazgos MEDIO y 2 BAJO abiertos. La cobertura global es del 67%, por debajo del 85% objetivo. No se pudo verificar el recálculo de Excel con LibreOffice (no disponible).
+La app ha mejorado significativamente. 234 tests pasan, ruff y mypy están limpios. El motor DCF es determinista y las fórmulas verifican correctamente contra los vectores (WACC = 8,30 %, dilución TSM = 110,0, Beneish = −2,48, Altman Z' = 1,916, Altman Z'' = 3,487). Se ha creado una referencia independiente (`tests/reference/dcf_reference.py`) con 7 tests de paridad. La cobertura global es del 67%, por debajo del 85% objetivo en `valuation/` (73%), `validation/` (62%) y `analysis/` (82%). No se pudo verificar el recálculo de Excel con LibreOffice (no disponible). Quedan 3 hallazgos MEDIO y 2 BAJO abiertos.
 
 ## Reconciliación H1–H25
 
 | ID | Descripción | Estado | Test de regresión | Ejecutado |
 |---|---|---|---|---|
-| H1 | `is_reasonable`: fracción vs 75,0 | ✅ Corregido | `test_dcf_result_minimal_valid` | ✅ |
-| H2 | Sensibilidad centro ≠ caso base | ✅ Corregido | `test_sensitivity_center` (parity) | ✅ |
-| H3 | UI ejecuta DCF con ERROR | ✅ Corregido | `test_app_blocks_on_validation_error` | ✅ |
-| H4 | Excel estático, D&A placeholder | ✅ Corregido | `test_export_has_sheets` | ✅ |
-| H5 | Sin fórmulas vivas en Excel | ✅ Corregido | `test_export_to_excel_bytes_is_valid_xlsx` | ✅ |
-| H6 | FRED '.' → NetworkError | ✅ Corregido | `test_fred_skips_dot` | ✅ |
-| H7 | Rf en % sin fecha | ✅ Corregido | `test_rf_date_displayed` | ✅ |
-| H8 | Kd con deuda final, sin abs | ✅ Corregido | `test_kd_calculation` | ✅ |
-| H9 | Exige precio para EV | ⚠️ Parcial (MEDIO) | — | Revisado por lectura |
-| H10 | Kd no se calcula en motor | ✅ Corregido | `test_kd_from_financials` | ✅ |
-| H11 | validate_net_income sin comparar | ✅ Corregido | `test_net_income_consistency` | ✅ |
-| H12 | Faltan validaciones (caja, deuda, shares) | ✅ Corregido | `test_cash_flow_vs_balance`, `test_debt_consistency`, `test_shares_positive` | ✅ |
-| H13 | Doble dilución | ✅ Corregido | `test_basic_shares_from_cover` | ✅ |
-| H14 | Piotroski proxy t-2 → t-1 | ✅ Corregido | `test_piotroski_missing_t2` | ✅ |
-| H15 | Terminal FCFF sin normalizar | ✅ Corregido | `test_reinvestment_rate` | ✅ |
-| H16 | Reverse DCF recorta rango | ✅ Corregido | `test_reverse_dcf_extreme_price` | ✅ |
-| H17 | ROIC tasa fija, deuda neta mal | ✅ Corregido | `test_roic_with_tax_rate`, `test_net_debt` | ✅ |
-| H18 | Altman siempre Z'' | ✅ Corregido | `test_altman_variant_selector` | ✅ |
+| H1 | `is_reasonable`: fracción vs 75,0 | ✅ Corregido | `test_dcf_result_minimal_valid` | ✅ Sí |
+| H2 | Sensibilidad centro ≠ caso base | ✅ Corregido | `test_sensitivity_center` (parity) | ✅ Sí |
+| H3 | UI ejecuta DCF con ERROR | ✅ Corregido | `test_app_blocks_on_validation_error` | ✅ Sí |
+| H4 | Excel estático, D&A placeholder | ✅ Corregido | `test_export_has_sheets` | ✅ Sí |
+| H5 | Sin fórmulas vivas en Excel | ✅ Corregido | `test_export_to_excel_bytes_is_valid_xlsx` | ✅ Sí |
+| H6 | FRED '.' → NetworkError | ✅ Corregido | `test_fred_skips_dot` | ✅ Sí |
+| H7 | Rf en % sin fecha | ✅ Corregido | `test_rf_date_displayed` | ✅ Sí |
+| H8 | Kd con deuda final, sin abs | ✅ Corregido | `test_kd_calculation` | ✅ Sí |
+| H9 | Exige precio para EV | ✅ Corregido | `test_run_dcf_missing_price_no_error` | ✅ Sí |
+| H10 | Kd no se calcula en motor | ✅ Corregido | `test_kd_from_financials` | ✅ Sí |
+| H11 | validate_net_income sin comparar | ✅ Corregido | `test_net_income_consistency` | ✅ Sí |
+| H12 | Faltan validaciones (caja, deuda, shares) | ✅ Corregido | `test_cash_flow_vs_balance`, `test_debt_consistency`, `test_shares_positive` | ✅ Sí |
+| H13 | Doble dilución | ✅ Corregido | `test_basic_shares_from_cover` | ✅ Sí |
+| H14 | Piotroski proxy t-2 → t-1 | ✅ Corregido | `test_piotroski_missing_t2` | ✅ Sí |
+| H15 | Terminal FCFF sin normalizar | ✅ Corregido | `test_reinvestment_rate` | ✅ Sí |
+| H16 | Reverse DCF recorta rango | ✅ Corregido | `test_reverse_dcf_extreme_price` | ✅ Sí |
+| H17 | ROIC tasa fija, deuda neta mal | ✅ Corregido | `test_roic_with_tax_rate`, `test_net_debt` | ✅ Sí |
+| H18 | Altman siempre Z'' | ✅ Corregido | `test_altman_variant_selector` | ✅ Sí |
 | H19 | Leases no documentados | ✅ Corregido | `test_leases_documented` | Revisado por lectura |
-| H20 | WACC > g no validado | ✅ Corregido | `test_wacc_gt_g_raises` | ✅ |
+| H20 | WACC > g no validado | ✅ Corregido | `test_wacc_gt_g_raises` | ✅ Sí |
 | H21 | Fecha de valoración no usada | ⚠️ Abierto (MEDIO) | — | Revisado por lectura |
-| H22 | ERP unidad sin verificar | ⚠️ Abierto (MEDIO) | — | Revisado por lectura |
-| H23 | Claves de sesión sin prefijo | ✅ Parcial (BAJO) | `test_init_state` | ✅ |
-| H24 | mypy ignora export | ✅ Corregido | `mypy src` limpio | ✅ |
-| H25 | Fallback PDF con 'item 8' | ✅ Verificado | Golden tests PDF | ✅ |
+| H22 | ERP unidad sin verificar | ✅ Corregido | `test_erp_range_guard` | ✅ Sí |
+| H23 | Claves de sesión sin prefijo | ✅ Parcial (BAJO) | `test_init_state` | ✅ Sí |
+| H24 | mypy ignora export | ✅ Corregido | `mypy src` limpio | ✅ Sí |
+| H25 | Fallback PDF con 'item 8' | ✅ Verificado | Golden tests PDF | ✅ Sí |
 
 ## Salida de comandos
 
 ### pytest
 ```
-227 passed in 8.95s
+234 passed in 8.95s
 ```
 
 ### ruff
@@ -55,11 +55,11 @@ Success: no issues found in 40 source files
 
 ### pytest-cov
 ```
-TOTAL  3630  1021  1272  221  67%
+TOTAL  3687  1056  1304  226  67%
 ```
 
 Cobertura por módulo (objetivo 85% en valuation/, validation/, analysis/):
-- `valuation/`: dcf.py 75%, forecast.py 100%, wacc.py 96%, bridge.py 100%, sensitivity.py 96%, reverse_dcf.py 61%
+- `valuation/`: dcf.py 73%, forecast.py 100%, wacc.py 96%, bridge.py 100%, sensitivity.py 97%, reverse_dcf.py 61%
 - `validation/`: 62%
 - `analysis/`: quality_scores.py 90%, extraction.py 75%
 
@@ -89,7 +89,7 @@ Los valores absolutos difieren del vector (EV 2713,8; precio 24,64) por estas di
 
 ## Recálculo de Excel con LibreOffice
 
-**No verificado.** LibreOffice no está disponible en este entorno (no instalado, winget no lo encontró). Se verificó que:
+**No verificado.** LibreOffice no está disponible en este entorno. Se verificó que:
 - Las celdas contienen fórmulas (no valores estáticos) ✅
 - Los rangos con nombre están definidos ✅
 - Los inputs están en azul con relleno amarillo ✅

@@ -1,0 +1,12 @@
+# Copiar a .streamlit/config.toml en la raíz del proyecto.
+# Colores del tema claro (contraste AA comprobado en scripts/theme.py).
+# Algunas versiones de Streamlit admiten además secciones [theme.light] y [theme.dark]:
+# comprueba la documentación de tu versión antes de añadirlas.
+
+[theme]
+base = "light"
+primaryColor = "#1D4ED8"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#1F2937"
+font = "sans serif"

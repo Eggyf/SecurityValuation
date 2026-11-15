@@ -314,6 +314,17 @@ def _render_assumptions_form() -> Assumptions | None:
     """
     st.subheader("Supuestos de valoración")
 
+    # Escenarios predefinidos
+    st.markdown("**Escenario** (punto de partida)")
+    scenario = st.radio(
+        "Escenario",
+        ["Prudente", "Equilibrado", "Optimista"],
+        index=1,
+        horizontal=True,
+        help="Prudente: las cosas salen peor. Equilibrado: lo razonable según el pasado. Optimista: salen bien, sin fantasías.",  # noqa: E501
+        label_visibility="collapsed",
+    )
+
     # Intentar precargar datos de mercado (FRED + Twelve Data + Damodaran)
     rf_default = None
     try:
@@ -419,6 +430,13 @@ def _render_assumptions_form() -> Assumptions | None:
         growth_pct = 5.0
         if suggested is not None and suggested.revenue_cagr is not None:
             growth_pct = suggested.revenue_cagr * 100.0
+
+        # Ajuste por escenario
+        if scenario == "Prudente" and suggested is not None and suggested.revenue_cagr is not None:
+            growth_pct = growth_pct / 2.0
+        elif scenario == "Optimista" and suggested is not None and suggested.revenue_cagr is not None:  # noqa: E501
+            growth_pct = min(growth_pct, 25.0)
+
         initial_growth = (
             st.number_input("Crecimiento inicial de ingresos (%)", -5.0, 25.0, growth_pct, 0.5)
             / 100.0
@@ -953,6 +971,52 @@ def main() -> None:
         if result is None:
             st.info("Ejecuta el DCF en la pestaña de Supuestos.")
         else:
+            # Titular con rango
+            assumptions_r = st.session_state.dcf_assumptions
+            if assumptions_r is not None and assumptions_r.stock_price_current is not None:
+                price = assumptions_r.stock_price_current
+                low = result.price_per_share * 0.85
+                high = result.price_per_share * 1.15
+                st.markdown(
+                    f"### Según tus supuestos, cada acción valdría entre "
+                    f"**{low:,.0f}** y **{high:,.0f} USD**. "
+                    f"Valor central: **{result.price_per_share:,.2f} USD**. "
+                    f"Hoy cotiza a **{price:,.2f} USD**."
+                )
+                pct_diff = (result.price_per_share / price - 1) * 100
+                if abs(pct_diff) < 5:
+                    st.caption("Tu estimación está cerca del precio de hoy.")
+                elif pct_diff > 0:
+                    st.caption(f"Tu estimación central está un {pct_diff:.0f} % por encima del precio de hoy.")  # noqa: E501
+                else:
+                    st.caption(f"Tu estimación central está un {abs(pct_diff):.0f} % por debajo del precio de hoy.")  # noqa: E501
+            else:
+                st.markdown(
+                    f"### Valor estimado: **{result.price_per_share:,.2f} USD** por acción. "
+                    f"Añade el precio actual para compararlo."
+                )
+            st.caption("Es una estimación basada en supuestos. No es una predicción ni una recomendación de inversión.")  # noqa: E501
+
+            # Indicador de confianza
+            reasons = []
+            if result.tv_percentage > 0.75:
+                reasons.append(f"El {result.tv_percentage:.0%} del valor depende del largo plazo")
+            if not result.is_reasonable:
+                reasons.append("El resultado puede no ser razonable")
+            if assumptions_r is not None and assumptions_r.stock_price_current is None:
+                reasons.append("Falta el precio de la acción para comparar")
+
+            if len(reasons) >= 2:
+                confidence = "Baja"
+            elif len(reasons) == 1:
+                confidence = "Media"
+            else:
+                confidence = "Alta"
+
+            st.markdown(f"**Confianza: {confidence}**")
+            for r in reasons:
+                st.caption(f"• {r}")
+
             _render_results(result)
 
             # Exportación a Excel (AGENTS.md §1: informe UI + Excel).
