@@ -60,6 +60,7 @@ def init_state() -> None:
         "uploaded_file_name": None,
         "online_mode": False,
         "edgar_ticker": "",
+        "theme": "light",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -726,8 +727,27 @@ def _render_results(result: Any) -> None:
 # ---------------------------------------------------------------------------
 def main() -> None:
     """Punto de entrada de la aplicación Streamlit."""
+    # Sidebar con tema y disclaimer
+    with st.sidebar:
+        st.markdown("## ⚙️ Configuración")
+        theme = st.toggle("Modo oscuro", value=st.session_state.get("theme") == "dark")
+        st.session_state.theme = "dark" if theme else "light"
+        st.markdown("---")
+        st.markdown(DISCLAIMER)
+
+    # Aplicar tema CSS
+    if st.session_state.theme == "dark":
+        st.markdown(
+            """
+            <style>
+            .stApp { background-color: #0F172A; color: #E5E7EB; }
+            .stSidebar { background-color: #1E293B; }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.title("📊 Valoración DCF desde Form 10-K")
-    st.markdown(DISCLAIMER)
 
     # Guía rápida para usuarios no financieros
     with st.expander("📖 ¿Cómo usar esta app? (guía rápida)", expanded=False):
