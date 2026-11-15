@@ -762,6 +762,7 @@ def main() -> None:
             "4. Resultados",
             "5. Reverse DCF",
             "6. Calidad",
+            "7. Monte Carlo",
         ]
     )
 
@@ -1270,6 +1271,60 @@ def main() -> None:
                         st.metric("Conversión FCF", f"{ratios['fcf_conversion']:.2f}")
             except Exception as e:
                 st.warning(f"No se pudieron calcular los ratios: {e}")
+
+    # --- Tab 7: Monte Carlo ---
+    with tabs[6]:
+        st.header("Simulación Monte Carlo")
+        st.markdown(
+            "Simula miles de escenarios variando los supuestos para obtener "
+            "una distribución de valor en vez de un número único."
+        )
+
+        result = st.session_state.dcf_result
+        financials = st.session_state.financials
+        assumptions = st.session_state.assumptions
+
+        if result is None or financials is None or assumptions is None:
+            st.info("Ejecuta primero el DCF en la pestaña de Supuestos.")
+        else:
+            market_price = assumptions.stock_price_current
+            n_sims = st.slider("Número de simulaciones", 1000, 50000, 10000, 1000)
+            seed = st.number_input("Semilla (reproducibilidad)", 0, 999999, 42, 1)
+
+            if st.button("Ejecutar Monte Carlo"):
+                from dcf_app.valuation.monte_carlo import simulate
+
+                with st.spinner(f"Simulando {n_sims:,} escenarios..."):
+                    mc = simulate(
+                        assumptions, financials, n=n_sims, seed=int(seed),
+                        market_price=market_price,
+                    )
+
+                st.markdown(
+                    f"**Simulaciones válidas:** {mc.n_valid:,} "
+                    f"(descartadas: {mc.n_discarded:,})"
+                )
+
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Media", f"{mc.mean:,.2f} USD")
+                with col2:
+                    st.metric("Mediana", f"{mc.median:,.2f} USD")
+                with col3:
+                    st.metric("P5", f"{mc.p5:,.2f} USD")
+                with col4:
+                    st.metric("P95", f"{mc.p95:,.2f} USD")
+
+                if mc.prob_above_market is not None:
+                    st.markdown(
+                        f"**Probabilidad de superar el precio de mercado:** "
+                        f"{mc.prob_above_market:.1%}"
+                    )
+
+                st.caption(
+                    "Distribución bajo estos supuestos. "
+                    "No es una probabilidad real de acierto."
+                )
 
     # Disclaimer final
     st.markdown("---")

@@ -155,6 +155,10 @@ def _compute_historical_metrics(financials: FinancialStatements) -> dict[str, An
 
 def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
     """Calcula el WACC a partir de los supuestos y métricas."""
+    # Override para Monte Carlo
+    if assumptions.wacc_override is not None:
+        return assumptions.wacc_override
+
     # Rf
     rf = assumptions.risk_free_rate
     if rf is None:

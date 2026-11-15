@@ -7,9 +7,9 @@ independiente (tests/reference/dcf_reference.py) en varios casos.
 from __future__ import annotations
 
 import math
+import sys
 from datetime import date
-
-import pytest
+from pathlib import Path
 
 from dcf_app.models.assumptions import Assumptions, DiscountConvention, TerminalValueMethod
 from dcf_app.models.fact import Fact, Scale, SourceKind, SourceRef
@@ -20,8 +20,6 @@ from dcf_app.models.financials import (
     IncomeStatement,
 )
 from dcf_app.valuation.dcf import run_dcf
-import sys
-from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from reference.dcf_reference import RefInputs, run_ref_dcf
@@ -32,10 +30,10 @@ def _src() -> SourceRef:
 
 
 def _fact(value: float) -> Fact:
-    return Fact(value=value, unit="USD", scale=Scale.MILLIONS, period_end=date(2024, 12, 31), source=_src())
+    return Fact(value=value, unit="USD", scale=Scale.MILLIONS, period_end=date(2024, 12, 31), source=_src())  # noqa: E501
 
 
-def _make_financials(revenue: float = 1000.0, base_revenue: float | None = 1000.0, debt: float = 400.0) -> FinancialStatements:
+def _make_financials(revenue: float = 1000.0, base_revenue: float | None = 1000.0, debt: float = 400.0) -> FinancialStatements:  # noqa: E501
     """Crea financials que producen las métricas del caso base."""
     # Año anterior (para base_revenue)
     income_prev = IncomeStatement(
@@ -117,7 +115,7 @@ def _make_assumptions(
         tax_rate=0.21,
         stock_price_current=20.0,
         shares_outstanding=100.0,
-        discount_convention=DiscountConvention.MID_YEAR if mid_year else DiscountConvention.END_OF_YEAR,
+        discount_convention=DiscountConvention.MID_YEAR if mid_year else DiscountConvention.END_OF_YEAR,  # noqa: E501
         terminal_value_method=TerminalValueMethod.GORDON_GROWTH,
         roic_terminal=roic_terminal,
     )
@@ -223,12 +221,11 @@ class TestParity:
         result = run_dcf(assumptions, financials)
 
         # El centro de la tabla WACC×g debe ser el precio del caso base
-        center_key = (assumptions.risk_free_rate + assumptions.equity_beta * assumptions.equity_risk_premium, assumptions.terminal_revenue_growth)
+        (assumptions.risk_free_rate + assumptions.equity_beta * assumptions.equity_risk_premium, assumptions.terminal_revenue_growth)  # noqa: E501
         # Buscar la celda más cercana al caso base
         base_price = result.price_per_share
         min_diff = float("inf")
-        for (w, g), price in result.sensitivity_wacc_growth.items():
+        for (_w, _g), price in result.sensitivity_wacc_growth.items():
             if abs(price - base_price) < min_diff:
                 min_diff = abs(price - base_price)
-                closest = (w, g, price)
         assert min_diff < 0.01, f"Centro de sensibilidad no coincide: diff={min_diff}"

@@ -78,7 +78,7 @@ def run_ref_dcf(inp: RefInputs) -> RefResult:
     - CapEx = Revenue * capex_pct
     - ΔNWC = (Revenue_t - Revenue_{t-1}) * nwc_pct
     - FCFF = NOPAT + D&A - CapEx - ΔNWC
-    - Terminal: NOPAT_(n+1) = NOPAT_n * (1+g); reinvestment = g/ROIC; FCFF_(n+1) = NOPAT_(n+1) * (1-reinv)
+    - Terminal: NOPAT_(n+1) = NOPAT_n * (1+g); reinvestment = g/ROIC; FCFF_(n+1) = NOPAT_(n+1) * (1-reinv)  # noqa: E501
     - TV = FCFF_(n+1) / (WACC - g)
     - DF_t = 1/(1+WACC)^t (fin de año) o 1/(1+WACC)^(t-0.5) (mitad de año)
     """
@@ -104,10 +104,7 @@ def run_ref_dcf(inp: RefInputs) -> RefResult:
         d_nwc = (rev - prev_rev) * inp.nwc_pct
         fcff = nopat + da - capex - d_nwc
 
-        if inp.mid_year:
-            t_disc = t + 1 - 0.5
-        else:
-            t_disc = t + 1
+        t_disc = t + 1 - 0.5 if inp.mid_year else t + 1
         df = 1.0 / (1 + inp.wacc) ** t_disc
 
         r.revenue.append(rev)
@@ -133,15 +130,12 @@ def run_ref_dcf(inp: RefInputs) -> RefResult:
         ebitda_last = r.ebit[-1] + r.da[-1]
         r.terminal_value = ebitda_last * inp.exit_multiple
 
-    if inp.mid_year:
-        t_tv = n - 0.5
-    else:
-        t_tv = float(n)
+    t_tv = n - 0.5 if inp.mid_year else float(n)
     r.pv_terminal = r.terminal_value / (1 + inp.wacc) ** t_tv
 
     r.enterprise_value = r.pv_fcff + r.pv_terminal
     r.equity_value = (
-        r.enterprise_value + inp.cash + inp.short_term_inv - inp.debt - inp.leases - inp.preferred - inp.nci
+        r.enterprise_value + inp.cash + inp.short_term_inv - inp.debt - inp.leases - inp.preferred - inp.nci  # noqa: E501
     )
     r.price_per_share = r.equity_value / inp.shares
     r.tv_share_of_ev = r.pv_terminal / r.enterprise_value if r.enterprise_value != 0 else 0.0

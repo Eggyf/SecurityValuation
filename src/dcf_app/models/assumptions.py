@@ -77,6 +77,7 @@ class Assumptions(BaseModel):
         None, ge=0.0
     )  # D/E objetivo para pesos WACC sin precio de mercado
     cost_of_debt: float | None = Field(None, ge=0.0, le=1.0)  # Kd antes de impuestos
+    wacc_override: float | None = Field(None, ge=0.0, le=1.0)  # WACC fijo (para Monte Carlo)
     tax_rate: float | None = Field(None, ge=0.0, le=0.3)  # tasa impositiva efectiva [0%, 30%]
 
     # --- Valor terminal (AGENTS.md §7.4) ---

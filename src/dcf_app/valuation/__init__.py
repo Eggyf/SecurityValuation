@@ -19,6 +19,7 @@ from dcf_app.valuation.forecast import (
     project_nopat,
     project_revenue,
 )
+from dcf_app.valuation.monte_carlo import MonteCarloResult, simulate
 from dcf_app.valuation.sensitivity import (
     _dcf_price,
     sensitivity_2d,
@@ -37,6 +38,7 @@ from dcf_app.valuation.wacc import (
 
 __all__ = [
     "ForecastResult",
+    "MonteCarloResult",
     "_dcf_price",
     "bridge_summary",
     "bridge_to_equity",
@@ -58,6 +60,7 @@ __all__ = [
     "sensitivity_2d",
     "sensitivity_margin_growth",
     "sensitivity_wacc_growth",
+    "simulate",
     "terminal_value_gordon",
     "terminal_value_multiple",
     "treasury_stock_diluted_shares",
