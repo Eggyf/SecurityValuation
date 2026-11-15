@@ -15,7 +15,6 @@ import streamlit as st
 from dcf_app.assumptions.defaults import suggest_defaults
 from dcf_app.data_sources import (
     get_cik_from_ticker,
-    get_damodaran_erp,
     get_edgar_provider,
     get_market_data,
     get_risk_free_rate_full,
@@ -291,10 +290,15 @@ def _missing_market_inputs(assumptions: Assumptions) -> list[str]:
         missing.append("Kd (coste de la deuda)")
     if assumptions.tax_rate is None:
         missing.append("Tasa impositiva")
-    if assumptions.market_equity_value is None:
-        missing.append("Capitalización de mercado")
-    if assumptions.stock_price_current is None:
-        missing.append("Precio de la acción")
+    # Market cap: requerido solo si no hay D/E objetivo
+    if assumptions.market_equity_value is None and assumptions.target_de_ratio is None:
+        missing.append("Capitalización de mercado o D/E objetivo")
+    # Precio: requerido solo si hay opciones/RSUs o se quiere upside
+    opts = assumptions.options_outstanding or 0
+    rsus = assumptions.rsus_outstanding or 0
+    has_options = opts > 0 or rsus > 0
+    if assumptions.stock_price_current is None and has_options:
+        missing.append("Precio de la acción (necesario para dilución)")
     if assumptions.shares_outstanding is None:
         missing.append("Acciones en circulación")
     return missing
@@ -325,10 +329,19 @@ def _render_assumptions_form() -> Assumptions | None:
 
     erp_default = None
     try:
-        erp_val = get_damodaran_erp()
-        if erp_val is not None:
-            erp_default = erp_val * 100.0  # Convertir a porcentaje
-            st.caption(f"📡 ERP precargada desde Damodaran: {erp_val:.2%}")
+        from dcf_app.data_sources.damodaran import DamodaranProvider
+
+        _dam = DamodaranProvider()
+        _erp_result = _dam.get_implied_erp()
+        if isinstance(_erp_result.data, dict):
+            erp_val = _erp_result.data.get("erp")
+            erp_date = _erp_result.data.get("date", "N/A")
+            if erp_val is not None:
+                erp_default = erp_val * 100.0  # Convertir a porcentaje
+                st.caption(f"📡 ERP precargada desde Damodaran ({erp_date}): {erp_val:.2%}")
+                # Guarda de rango: ERP debe estar entre 2% y 10%
+                if erp_val < 0.02 or erp_val > 0.10:
+                    st.warning(f"⚠️ ERP ({erp_val:.2%}) fuera del rango plausible (2-10%).")
     except Exception:
         pass
 
@@ -470,6 +483,8 @@ def _render_assumptions_form() -> Assumptions | None:
                 help="Referencia: datasets de Damodaran. No está en el 10-K (AGENTS.md §7.3).",
             )
         )
+        if erp is not None and (erp < 0.02 or erp > 0.10):
+            st.warning(f"⚠️ ERP ({erp:.2%}) fuera del rango plausible (2-10%).")
         cost_of_debt = _pct(
             st.number_input(
                 "Coste de la deuda Kd (%)",

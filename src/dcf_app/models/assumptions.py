@@ -73,6 +73,9 @@ class Assumptions(BaseModel):
     equity_risk_premium: float | None = Field(None, ge=0.0, le=0.2)  # prima de riesgo del mercado
     market_equity_value: float | None = Field(None, ge=0.0)  # capitalización de mercado
     market_debt_value: float | None = Field(None, ge=0.0)  # valor de mercado de la deuda
+    target_de_ratio: float | None = Field(
+        None, ge=0.0
+    )  # D/E objetivo para pesos WACC sin precio de mercado
     cost_of_debt: float | None = Field(None, ge=0.0, le=1.0)  # Kd antes de impuestos
     tax_rate: float | None = Field(None, ge=0.0, le=0.3)  # tasa impositiva efectiva [0%, 30%]
 

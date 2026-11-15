@@ -204,14 +204,22 @@ def _compute_wacc(assumptions: Assumptions, metrics: dict[str, float]) -> float:
     debt_value = assumptions.market_debt_value
 
     if equity_value is None or debt_value is None:
-        # Usar valores contables como proxy (AGENTS.md §7.3)
-        equity_value = metrics["equity_value"]
-        debt_value = metrics["debt"] + metrics["leases"]  # leases financieros como deuda
-        if equity_value == 0.0 and debt_value == 0.0:
-            raise ValueError(
-                "Se requiere el valor de mercado del equity y/o de la deuda "
-                "para calcular los pesos del WACC."
-            )
+        # Usar D/E objetivo si se proporciona
+        if assumptions.target_de_ratio is not None:
+            de = assumptions.target_de_ratio
+            # Asumir equity = 1, debt = de → weights
+            equity_value = 1.0
+            debt_value = de
+        else:
+            # Usar valores contables como proxy (AGENTS.md §7.3)
+            equity_value = metrics["equity_value"]
+            debt_value = metrics["debt"] + metrics["leases"]  # leases financieros como deuda
+            if equity_value == 0.0 and debt_value == 0.0:
+                raise ValueError(
+                    "Se requiere el valor de mercado del equity y/o de la deuda "
+                    "para calcular los pesos del WACC. "
+                    "Proporcione market cap o un D/E objetivo."
+                )
 
     return wacc(equity_value, debt_value, ke, kd, tax_rate)
 
@@ -395,26 +403,30 @@ def run_dcf(
         raise ValueError("Las acciones en circulación son requeridas.")
 
     current_price = assumptions.stock_price_current
-    if current_price is None:
-        raise ValueError("El precio actual de la acción es requerido.")
-
     options = assumptions.options_outstanding or 0.0
     rsus = assumptions.rsus_outstanding or 0.0
     avg_exercise = assumptions.average_option_exercise_price or 0.0
 
-    diluted = treasury_stock_diluted_shares(
-        basic_shares=basic_shares,
-        options_outstanding=options,
-        rsus_outstanding=rsus,
-        avg_exercise_price=avg_exercise,
-        current_price=current_price,
-    )
+    if current_price is not None and current_price > 0 and (options > 0 or rsus > 0):
+        diluted = treasury_stock_diluted_shares(
+            basic_shares=basic_shares,
+            options_outstanding=options,
+            rsus_outstanding=rsus,
+            avg_exercise_price=avg_exercise,
+            current_price=current_price,
+        )
+    else:
+        # Sin precio o sin opciones: usar acciones básicas (+ RSUs)
+        diluted = basic_shares + rsus  # RSUs siempre diluyen
 
     # 10. Precio por acción
     price = price_per_share(equity, diluted)
 
-    # 11. Upside/downside
-    upside = (price / current_price - 1.0) * 100.0 if current_price > 0 else None
+    # 11. Upside/downside (solo si hay precio de mercado)
+    if current_price is not None and current_price > 0:
+        upside = (price / current_price - 1.0) * 100.0
+    else:
+        upside = None
 
     # 12. TV como % del EV
     tv_pct = pv_tv / ev if ev != 0 else 0.0

@@ -51,7 +51,7 @@ def _dcf_price(
     options_outstanding: float,
     rsus_outstanding: float,
     avg_exercise_price: float,
-    current_price: float,
+    current_price: float | None,
     convention: DiscountConvention,
 ) -> float:
     """Calcula el precio por acción para un conjunto de parámetros (AGENTS.md §7).
@@ -124,13 +124,20 @@ def _dcf_price(
         )
 
         # 7. Acciones diluidas
-        diluted = treasury_stock_diluted_shares(
-            basic_shares=basic_shares,
-            options_outstanding=options_outstanding,
-            rsus_outstanding=rsus_outstanding,
-            avg_exercise_price=avg_exercise_price,
-            current_price=current_price,
-        )
+        if (
+            current_price is not None
+            and current_price > 0
+            and (options_outstanding > 0 or rsus_outstanding > 0)
+        ):
+            diluted = treasury_stock_diluted_shares(
+                basic_shares=basic_shares,
+                options_outstanding=options_outstanding,
+                rsus_outstanding=rsus_outstanding,
+                avg_exercise_price=avg_exercise_price,
+                current_price=current_price,
+            )
+        else:
+            diluted = basic_shares + rsus_outstanding
 
         # 8. Precio por acción
         return price_per_share(equity, diluted)
@@ -187,7 +194,7 @@ def sensitivity_wacc_growth(
     options_outstanding: float,
     rsus_outstanding: float,
     avg_exercise_price: float,
-    current_price: float,
+    current_price: float | None,
     convention: DiscountConvention,
     terminal_method: TerminalValueMethod,
     terminal_multiple: float | None,
@@ -274,7 +281,7 @@ def sensitivity_margin_growth(
     options_outstanding: float,
     rsus_outstanding: float,
     avg_exercise_price: float,
-    current_price: float,
+    current_price: float | None,
     convention: DiscountConvention,
     # Rangos de sensibilidad
     margin_values: list[float],

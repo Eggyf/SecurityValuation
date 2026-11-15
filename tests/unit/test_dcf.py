@@ -237,14 +237,15 @@ def test_run_dcf_missing_shares_raises() -> None:
         run_dcf(assumptions, financials)
 
 
-def test_run_dcf_missing_price_raises() -> None:
-    """Sin precio actual → ValueError."""
+def test_run_dcf_missing_price_no_error() -> None:
+    """Sin precio actual el DCF se ejecuta (precio solo para upside y dilución)."""
     financials = _make_financials()
     assumptions = _make_assumptions()
     assumptions.stock_price_current = None
 
-    with pytest.raises(ValueError, match="precio actual"):
-        run_dcf(assumptions, financials)
+    result = run_dcf(assumptions, financials)
+    assert result.price_per_share > 0
+    assert result.upside_downside is None
 
 
 def test_run_dcf_missing_tax_rate_raises() -> None:
