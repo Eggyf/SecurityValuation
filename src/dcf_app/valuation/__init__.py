@@ -7,6 +7,7 @@ from dcf_app.valuation.bridge import (
     treasury_stock_diluted_shares,
 )
 from dcf_app.valuation.dcf import run_dcf
+from dcf_app.valuation.fcfe import FCFEResult, compute_fcfe
 from dcf_app.valuation.football_field import create_football_field_chart
 from dcf_app.valuation.forecast import (
     ForecastResult,
@@ -28,6 +29,7 @@ from dcf_app.valuation.multiples import (
     build_football_field,
     compute_multiples,
 )
+from dcf_app.valuation.residual_income import ResidualIncomeResult, compute_residual_income
 from dcf_app.valuation.sensitivity import (
     _dcf_price,
     sensitivity_2d,
@@ -45,18 +47,22 @@ from dcf_app.valuation.wacc import (
 )
 
 __all__ = [
+    "FCFEResult",
     "FootballFieldRange",
     "ForecastResult",
     "MonteCarloResult",
     "MultipleResult",
     "PeerData",
+    "ResidualIncomeResult",
     "_dcf_price",
     "bridge_summary",
     "bridge_to_equity",
     "build_football_field",
     "build_forecast",
     "capm_ke",
+    "compute_fcfe",
     "compute_multiples",
+    "compute_residual_income",
     "cost_of_debt",
     "create_football_field_chart",
     "discount_factor",

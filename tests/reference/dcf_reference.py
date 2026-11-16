@@ -78,7 +78,8 @@ def run_ref_dcf(inp: RefInputs) -> RefResult:
     - CapEx = Revenue * capex_pct
     - ΔNWC = (Revenue_t - Revenue_{t-1}) * nwc_pct
     - FCFF = NOPAT + D&A - CapEx - ΔNWC
-    - Terminal: NOPAT_(n+1) = NOPAT_n * (1+g); reinvestment = g/ROIC; FCFF_(n+1) = NOPAT_(n+1) * (1-reinv)  # noqa: E501
+    - Terminal: NOPAT_(n+1) = NOPAT_n * (1+g); reinvestment = g/ROIC;  # noqa: E501
+    - FCFF_(n+1) = NOPAT_(n+1) * (1-reinv)
     - TV = FCFF_(n+1) / (WACC - g)
     - DF_t = 1/(1+WACC)^t (fin de año) o 1/(1+WACC)^(t-0.5) (mitad de año)
     """

@@ -787,6 +787,7 @@ def main() -> None:
             "6. Calidad",
             "7. Monte Carlo",
             "8. Football Field",
+            "9. FCFE / RI",
         ]
     )
 
@@ -1447,6 +1448,66 @@ def main() -> None:
                 "Introduce los datos de los peers para calcular múltiplos. "
                 "Funcionalidad en desarrollo."
             )
+
+    # --- Tab 9: FCFE / RI ---
+    with tabs[8]:
+        st.header("FCFE y Residual Income (contraste)")
+        st.markdown(
+            "Modelos de contraste: FCFE (flujo al accionista) y "
+            "Residual Income (EVA). No sustituyen al DCF."
+        )
+
+        result = st.session_state.dcf_result
+        financials = st.session_state.financials
+        assumptions = st.session_state.assumptions
+
+        if result is None or financials is None or assumptions is None:
+            st.info("Ejecuta primero el DCF en la pestaña de Supuestos.")
+        else:
+            if st.button("Calcular FCFE y RI"):
+                from dcf_app.valuation.fcfe import compute_fcfe
+                from dcf_app.valuation.residual_income import compute_residual_income
+
+                with st.spinner("Calculando..."):
+                    fcfe = compute_fcfe(assumptions, financials, result)
+                    ri = compute_residual_income(assumptions, financials, result)
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("FCFE")
+                    st.metric("Valor del equity (M)", f"{fcfe.equity_value:,.0f}")
+                    st.metric("Precio por acción", f"{fcfe.price_per_share:,.2f} USD")
+                    if fcfe.divergence_pct is not None:
+                        st.caption(f"Divergencia vs DCF: {fcfe.divergence_pct:.1%}")
+                    if fcfe.has_warning:
+                        st.warning(fcfe.message)
+                    else:
+                        st.success(fcfe.message)
+
+                with col2:
+                    st.subheader("Residual Income")
+                    st.metric("Valor del equity (M)", f"{ri.equity_value:,.0f}")
+                    st.metric("Precio por acción", f"{ri.price_per_share:,.2f} USD")
+                    if ri.divergence_pct is not None:
+                        st.caption(f"Divergencia vs DCF: {ri.divergence_pct:.1%}")
+                    if ri.has_warning:
+                        st.warning(ri.message)
+                    else:
+                        st.success(ri.message)
+
+                # Divergencia
+                st.markdown("---")
+                if result.equity_value > 0:
+                    div = abs(fcfe.equity_value - result.equity_value) / result.equity_value
+                else:
+                    div = 0.0
+                if div > 0.25:
+                    st.warning(
+                        f"⚠️ Divergencia del {div:.1%} entre FCFE y DCF. "
+                        "Revisar supuestos de deuda."
+                    )
+                else:
+                    st.info(f"Divergencia FCFE vs DCF: {div:.1%} (dentro del umbral del 25%).")
 
     # Disclaimer final
     st.markdown("---")
