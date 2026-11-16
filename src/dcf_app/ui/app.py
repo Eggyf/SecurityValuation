@@ -738,7 +738,16 @@ def main() -> None:
     # Sidebar con tema y disclaimer
     with st.sidebar:
         st.markdown("## ⚙️ Configuración")
-        theme = st.toggle("Modo oscuro", value=st.session_state.get("theme") == "dark")
+        # Detectar tema del navegador si está disponible
+        browser_theme = None
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            browser_theme = st.context.theme.get("type")
+        default_dark = st.session_state.get("theme", "light") == "dark"
+        if browser_theme in ("dark", "light"):
+            default_dark = browser_theme == "dark"
+        theme = st.toggle("Modo oscuro", value=default_dark)
         st.session_state.theme = "dark" if theme else "light"
         st.markdown("---")
         st.markdown(DISCLAIMER)

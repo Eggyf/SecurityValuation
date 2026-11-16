@@ -1,11 +1,43 @@
 [theme]
-base = "light"
+font = "sans serif"
+baseRadius = "8px"
+
+[theme.light]
 primaryColor = "#1D4ED8"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F8FAFC"
 textColor = "#1F2937"
-font = "sans serif"
+linkColor = "#1D4ED8"
+greenColor = "#166534"
+greenBackgroundColor = "#DCFCE7"
+greenTextColor = "#166534"
+orangeColor = "#92400E"
+orangeBackgroundColor = "#FEF3C7"
+orangeTextColor = "#92400E"
+redColor = "#991B1B"
+redBackgroundColor = "#FEE2E2"
+redTextColor = "#991B1B"
+blueColor = "#1E40AF"
+blueBackgroundColor = "#DBEAFE"
+blueTextColor = "#1E40AF"
+chartCategoricalColors = ["#1D4ED8", "#C2410C", "#0F766E", "#6D28D9", "#B45309", "#475569"]
 
-[server]
-headless = true
-port = 8502
+[theme.dark]
+primaryColor = "#2563EB"
+backgroundColor = "#0F172A"
+secondaryBackgroundColor = "#1E293B"
+textColor = "#E5E7EB"
+linkColor = "#93C5FD"
+greenColor = "#86EFAC"
+greenBackgroundColor = "#14532D"
+greenTextColor = "#86EFAC"
+orangeColor = "#FCD34D"
+orangeBackgroundColor = "#78350F"
+orangeTextColor = "#FCD34D"
+redColor = "#FCA5A5"
+redBackgroundColor = "#7F1D1D"
+redTextColor = "#FCA5A5"
+blueColor = "#BFDBFE"
+blueBackgroundColor = "#1E3A8A"
+blueTextColor = "#BFDBFE"
+chartCategoricalColors = ["#60A5FA", "#FB923C", "#2DD4BF", "#A78BFA", "#FBBF24", "#94A3B8"]
